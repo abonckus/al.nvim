@@ -17,8 +17,6 @@ function M.setup()
 
     dapui.setup()
 
-    vim.fn.sign_define("DapBreakpoint", { text = "🐞" })
-
     dap.listeners.after.initialize.al = function()
         dapui.open()
     end

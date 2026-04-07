@@ -400,9 +400,24 @@ function M.on_workspace_loaded(ws)
     _active_folder = nil
     M._active_folder = nil
 
-    -- Stop any existing al_ls clients so they restart with the new root_dir
+    -- Stop any existing per-project al_ls clients (started before WorkspaceLoaded
+    -- fired, when workspace_root() was still nil and root_dir fell back to a
+    -- per-project path). After stopping, re-trigger FileType autocmds on all open
+    -- AL buffers so they start a new client with the correct workspace root_dir.
+    local had_clients = #vim.lsp.get_clients({ name = "al_ls" }) > 0
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
         vim.lsp.stop_client(client.id)
+    end
+    if had_clients then
+        -- Defer until the stopped clients have detached from their buffers,
+        -- then re-trigger FileType so vim.lsp.enable restarts with the new root_dir.
+        vim.defer_fn(function()
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "al" then
+                    vim.api.nvim_exec_autocmds("FileType", { buffer = buf, modeline = false })
+                end
+            end
+        end, 500)
     end
 
     -- Load all manifests asynchronously. When done, the next LspAttach

@@ -290,6 +290,71 @@ local function _switch_active_workspace(bufnr) -- luacheck: ignore 211
     )
 end
 
+--- Called when an al_ls client attaches in multi-project mode.
+--- Sends al/loadManifest for all workspace folders and probes closure state.
+---@param client vim.lsp.Client
+local function _on_lsp_attach(client) -- luacheck: ignore 211
+    if not _workspace_root or vim.tbl_isempty(_manifests) then
+        return
+    end
+
+    nio.run(function()
+        local Workspace = require("al.workspace")
+
+        -- Send al/loadManifest for all folders in parallel
+        local load_tasks = {}
+        for folder_norm, manifest in pairs(_manifests) do
+            load_tasks[#load_tasks + 1] = nio.run(function()
+                local request = nio.wrap(function(cb)
+                    client:request("al/loadManifest", { projectFolder = folder_norm, manifest = manifest.raw_json }, cb)
+                end, 1)
+                local err, result = request()
+                if err or (result and not result.success) then
+                    Utils.warn("multiproject: al/loadManifest failed for " .. folder_norm)
+                end
+            end)
+        end
+        for _, t in ipairs(load_tasks) do
+            t.wait()
+        end
+
+        -- Probe al/hasProjectClosureLoadedRequest for all folders in parallel
+        local probe_tasks = {}
+        for folder_norm, _ in pairs(_manifests) do
+            probe_tasks[#probe_tasks + 1] = nio.run(function()
+                local request = nio.wrap(function(cb)
+                    client:request("al/hasProjectClosureLoadedRequest", { workspacePath = folder_norm }, cb)
+                end, 1)
+                local err, result = request()
+                if not err and result then
+                    Workspace.hasProjectClosureLoaded[folder_norm] = result.loaded
+                end
+            end)
+        end
+        for _, t in ipairs(probe_tasks) do
+            t.wait()
+        end
+    end)
+end
+
+--- Register global LSP notification handlers for multi-project mode.
+--- Safe to call multiple times — chains to any existing handler.
+local function _register_notification_handlers() -- luacheck: ignore 211
+    local prev = vim.lsp.handlers["al/projectsLoadedNotification"]
+    vim.lsp.handlers["al/projectsLoadedNotification"] = function(err, result, ctx, config)
+        if result and type(result.projects) == "table" then
+            local Workspace = require("al.workspace")
+            for _, project_path in ipairs(result.projects) do
+                local pnorm = norm(project_path)
+                Workspace.hasProjectClosureLoaded[pnorm] = true
+            end
+        end
+        if prev then
+            prev(err, result, ctx, config)
+        end
+    end
+end
+
 --- Returns the workspace root directory when a multi-project workspace is active, else nil.
 ---@return string|nil
 function M.workspace_root()

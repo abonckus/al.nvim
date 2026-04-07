@@ -335,9 +335,34 @@ local function _on_lsp_attach(client)
             t.wait()
         end
 
-        -- Poll al/hasProjectClosureLoadedRequest for all folders in parallel
-        -- Fast-path: al/projectsLoadedNotification handler sets true immediately.
+        -- Poll al/hasProjectClosureLoadedRequest for all folders in parallel.
+        -- Fast-path: al/projectsLoadedNotification sets the flag immediately.
         -- This loop is the fallback for servers that don't send the notification.
+        local timeout_ms = (Config.multiproject or {}).closure_timeout_ms or 300000
+        local total_folders = vim.tbl_count(_manifests)
+        local loaded_count = 0
+        local progress_token = "al_multiproject_closure_" .. client.id
+
+        vim.schedule(function()
+            vim.api.nvim_exec_autocmds("LspProgress", {
+                pattern = "begin",
+                modeline = false,
+                data = {
+                    client_id = client.id,
+                    params = {
+                        token = progress_token,
+                        value = {
+                            kind = "begin",
+                            title = "AL loading",
+                            message = ("Loading project closures (0/%d)"):format(total_folders),
+                            percentage = 0,
+                            cancellable = false,
+                        },
+                    },
+                },
+            })
+        end)
+
         local probe_tasks = {}
         for folder_norm, _ in pairs(_manifests) do
             probe_tasks[#probe_tasks + 1] = nio.run(function()
@@ -346,11 +371,11 @@ local function _on_lsp_attach(client)
                         client:request("al/hasProjectClosureLoadedRequest", { workspacePath = folder_norm }, cb)
                     end)
                 end, 1)
-                local deadline = vim.uv.now() + 30000 -- 30 s
+                local deadline = vim.uv.now() + timeout_ms
                 while not Workspace.hasProjectClosureLoaded[folder_norm] do
                     if vim.uv.now() >= deadline then
                         Utils.warn("multiproject: closure load timed out for " .. folder_norm)
-                        Workspace.hasProjectClosureLoaded[folder_norm] = true -- unblock callers
+                        Workspace.hasProjectClosureLoaded[folder_norm] = true
                         break
                     end
                     local err, result = request()
@@ -362,6 +387,44 @@ local function _on_lsp_attach(client)
                     end
                     nio.sleep(500)
                 end
+                -- Report per-folder progress
+                loaded_count = loaded_count + 1
+                local lc = loaded_count
+                local manifest = _manifests[folder_norm]
+                local name = manifest and manifest.folder_name or folder_norm
+                vim.schedule(function()
+                    local is_done = lc >= total_folders
+                    vim.api.nvim_exec_autocmds("LspProgress", {
+                        pattern = is_done and "end" or "report",
+                        modeline = false,
+                        data = {
+                            client_id = client.id,
+                            params = {
+                                token = progress_token,
+                                value = {
+                                    kind = is_done and "end" or "report",
+                                    title = "AL loading",
+                                    message = is_done and "Projects loaded"
+                                        or ("Loading project closures (%d/%d) — %s done"):format(
+                                            lc,
+                                            total_folders,
+                                            name
+                                        ),
+                                    percentage = math.floor(lc / total_folders * 100),
+                                    cancellable = false,
+                                },
+                            },
+                        },
+                    })
+                    -- When all closures loaded, refresh inlay hints on open AL buffers
+                    if is_done then
+                        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                            if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "al" then
+                                pcall(vim.lsp.inlay_hint.enable, true, { bufnr = buf })
+                            end
+                        end
+                    end
+                end)
             end)
         end
         for _, t in ipairs(probe_tasks) do

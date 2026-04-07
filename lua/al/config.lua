@@ -18,6 +18,7 @@ local M = {}
 
 ---@class al.Config.Multiproject
 ---@field settings_path string
+---@field closure_timeout_ms integer
 
 ---@class al.Config
 ---@field lsp al.Config.LSP
@@ -65,6 +66,7 @@ local defaults = {
     },
     multiproject = {
         settings_path = ".vscode/settings.json",
+        closure_timeout_ms = 300000, -- 5 minutes; increase for very large workspaces
     },
 }
 

@@ -554,13 +554,27 @@ function M.setup()
         end,
     })
 
-    -- LspAttach: in multi-project mode, send loadManifest for all folders
+    -- LspAttach: in multi-project mode, send loadManifest for all folders.
+    -- Also trigger an immediate workspace switch for the current AL buffer —
+    -- BufEnter may have fired while the old client was stopping and found no
+    -- clients, so the switch never happened.
     vim.api.nvim_create_autocmd("LspAttach", {
         group = group,
         callback = function(ev)
             local client = vim.lsp.get_client_by_id(ev.data.client_id)
             if client and client.name == "al_ls" and _workspace_root then
                 _on_lsp_attach(client)
+                local cur = vim.api.nvim_get_current_buf()
+                if vim.bo[cur].filetype == "al" then
+                    _debounce_timer:stop()
+                    _debounce_timer:start(
+                        100,
+                        0,
+                        vim.schedule_wrap(function()
+                            _switch_active_workspace(cur)
+                        end)
+                    )
+                end
             end
         end,
     })

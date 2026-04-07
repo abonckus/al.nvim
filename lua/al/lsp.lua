@@ -95,6 +95,13 @@ function M.setup()
         filetypes = { "al" },
         root_markers = { "app.json", ".alpackages" },
         root_dir = function(bufnr, on_dir)
+            -- In multi-project mode all AL files share one client rooted at the workspace dir
+            local ws_root = require("al.multiproject").workspace_root()
+            if ws_root then
+                on_dir(ws_root)
+                return
+            end
+            -- Single-project fallback: walk up to the nearest app.json parent
             local fname = vim.api.nvim_buf_get_name(bufnr)
             local has_al_project_cfg = function(path)
                 local alpath = vim.fs.joinpath(path, "app.json")

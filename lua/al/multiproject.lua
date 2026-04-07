@@ -276,6 +276,13 @@ local function _switch_active_workspace(bufnr)
                 end
             end)
         end
+        -- Chain to the global handler so other plugins (e.g. neotest-al) can
+        -- react to al/activeProjectLoaded. Per-client handlers shadow global ones,
+        -- so without this chain neotest-al's discovery trigger never fires.
+        local global = vim.lsp.handlers["al/activeProjectLoaded"]
+        if global then
+            global(err, result, ctx, cfg)
+        end
         return vim.NIL
     end
 
@@ -389,6 +396,18 @@ M._active_folder = nil
 ---@return string|nil
 function M.workspace_root()
     return _workspace_root
+end
+
+--- Returns the AL project folder for the given buffer when in multi-project mode, else nil.
+--- Use this instead of Workspace.root when building/running per-project commands.
+---@param bufnr integer
+---@return string|nil
+function M.project_for_buf(bufnr)
+    if not _workspace_root then
+        return nil
+    end
+    local folder_norm = (_folder_for_buf(bufnr))
+    return folder_norm
 end
 
 --- Handle WorkspaceLoaded from code-workspace.nvim.

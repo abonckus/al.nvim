@@ -6,18 +6,26 @@ local Lsp = require("al.lsp")
 local build_package = function()
 	local co = coroutine.running()
 	local fname = vim.api.nvim_buf_get_name(0)
-	local ws = Workspace.find({ path = fname })
+	local buf = vim.api.nvim_get_current_buf()
+	local project_dir = require("al.multiproject").project_for_buf(buf)
+	if not project_dir then
+		local ws = Workspace.find({ path = fname })
+		project_dir = ws and ws.root
+	end
+	if not project_dir then
+		Util.error("Could not determine AL project directory for current buffer.")
+		return
+	end
 	local params = {
-		projectDir = ws.root,
+		projectDir = project_dir,
 		args = {
-			"-project:" .. ws.root,
+			"-project:" .. project_dir,
 		},
 		isRad = false,
 		vSCodeExtensionVersion = Config.language_extension_version,
 		forceBuildDependencies = false,
 	}
 
-	local buf = vim.api.nvim_get_current_buf()
 	local client = Lsp.get_client_for_buf(buf)
 	if not client then
 		Util.error("No AL language server attached to the current buffer.")

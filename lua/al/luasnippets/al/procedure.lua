@@ -25,7 +25,7 @@ return {
         },
         fmt(
             [[
-            {} procedure {}({}) 
+            {} procedure {}({})
             var
                 {}: {};
             begin

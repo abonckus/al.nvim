@@ -17,7 +17,7 @@ return {
                 UsageCategory = {usage_category};
                 ApplicationArea = {application_area};
                 DefaultRenderingLayout = {layout_name};
-                
+
                 dataset
                 {{
                     dataitem({data_item_name}, {source_table_name})
@@ -28,7 +28,7 @@ return {
                         }}
                     }}
                 }}
-                
+
                 requestpage
                 {{
                     AboutTitle = '{}';
@@ -46,7 +46,7 @@ return {
                             }}
                         }}
                     }}
-                    
+
                     actions
                     {{
                         area({})
@@ -58,7 +58,7 @@ return {
                         }}
                     }}
                 }}
-                
+
                 rendering
                 {{
                     layout({})
@@ -67,7 +67,7 @@ return {
                         LayoutFile = '{}';
                     }}
                 }}
-                
+
                 var
                     {}: {};
             }}

@@ -284,6 +284,7 @@ local function _switch_active_workspace(bufnr) -- luacheck: ignore 211
         function(err, result)
             if err or (result and not result.success) then
                 Utils.warn("multiproject: al/setActiveWorkspace failed for " .. folder_norm)
+                client.handlers["al/activeProjectLoaded"] = prev_handler
             end
         end
     )

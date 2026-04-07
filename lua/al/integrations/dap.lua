@@ -1,37 +1,20 @@
+local Util = require("al.utils")
 local Config = require("al.config")
 local Lsp = require("al.lsp")
 local Workspace = require("al.workspace")
-local Util = require("al.utils")
-
-local dap = require("dap")
-local dap_virtual_text = require("nvim-dap-virtual-text")
-local dapui = require("dapui")
 
 local build_package = require("al.editor_commands.build")
 local auth = require("al.editor_commands.auth")
 
 local M = {}
 
-function M.setup()
-    dap_virtual_text.setup()
-
-    dapui.setup()
-
-    dap.listeners.after.initialize.al = function()
-        dapui.open()
+M.setup = function()
+    local ok, dap = pcall(require, "dap")
+    if not ok then
+        return
     end
 
-    dap.listeners.after.terminate.al = function()
-        dapui.close()
-    end
-
-    dap.listeners.after.event_terminated.al = function()
-        dapui.close()
-    end
-
-    dap.listeners.after.event_exited.al = function()
-        dapui.close()
-    end
+    Util.info("DAP adapter for al loaded")
 
     dap.adapters.al = function(callback, config)
         local auth_result = auth(config)
@@ -97,7 +80,8 @@ function M.args()
     local ws = Workspace.find({ path = fname })
 
     return {
-        Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),
+        Config.lspPath and Config.lspPath .. ".dll" or Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),
+        "/logLevel:Debug",
         "/telemetryLevel:" .. Config.lsp.telemetryLevel,
         "/browser:" .. Config.lsp.browser,
         "/inlayHintsParameterNames:" .. tostring(Config.lsp.inlayHintsParameterNames),
@@ -106,7 +90,7 @@ function M.args()
         "/extendGoToSymbolInWorkspace:" .. tostring(Config.lsp.extendGoToSymbolInWorkspace),
         "/extendGoToSymbolInWorkspaceResultLimit:" .. tostring(Config.lsp.extendGoToSymbolInWorkspaceResultLimit),
         "/extendGoToSymbolInWorkspaceIncludeSymbolFiles:"
-        .. tostring(Config.lsp.extendGoToSymbolInWorkspaceIncludeSymbolFiles),
+            .. tostring(Config.lsp.extendGoToSymbolInWorkspaceIncludeSymbolFiles),
         "/startDebugging",
         "/projectRoot:" .. ws.root,
     }
@@ -114,7 +98,7 @@ end
 
 -- Get the path to the appropriate proxy binary for the current platform
 function M.get_proxy_path()
-    local plugin_path = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") .. "../.."
+    local plugin_path = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") .. "../../.."
     local os_name = vim.loop.os_uname().sysname:lower()
 
     if os_name:match("windows") then

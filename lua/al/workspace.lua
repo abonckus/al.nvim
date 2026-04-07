@@ -1,4 +1,3 @@
-local Config = require("al.config")
 local Utils = require("al.utils")
 
 ---@class al.Workspace

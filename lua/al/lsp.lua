@@ -2,7 +2,6 @@
 local Config = require("al.config")
 ---@type al.Utils.mod
 local Utils = require("al.utils")
-local Workspace = require("al.workspace")
 
 local M = {}
 M.attached = {} ---@type table<number, number>
@@ -32,6 +31,10 @@ function M.attach(client)
     -- M.set_handler(client, "workspace/configuration", M.on_workspace_configuration)
     -- M.set_handler(client, "al/setActiveWorkspace", M.on_set_active_workspace)
     M.set_handler(client, "al/progressNotification", M.on_progress_notification)
+    -- The AL server sends al/activeProjectLoaded as a request (with id) expecting an ack
+    M.set_handler(client, "al/activeProjectLoaded", function()
+        return vim.NIL
+    end)
 end
 
 ---@param err lsp.ResponseError
@@ -174,7 +177,7 @@ function M.go_to_definition()
     local lsp = vim.lsp
     local api = vim.api
 
-    opts = opts or {}
+    local opts = {}
     local bufnr = api.nvim_get_current_buf()
     local clients = lsp.get_clients({ method = method, bufnr = bufnr })
     if not next(clients) then

@@ -7,6 +7,22 @@ on:
         branches: [main, master]
 
 jobs:
+    lua-lint:
+        name: Lua Lint
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install LuaRocks
+              run: sudo apt-get install -y luarocks
+
+            - name: Install luacheck
+              run: luarocks install luacheck
+
+            - name: Run luacheck
+              run: luacheck lua/
+
     documentation:
         name: Documentation Checks
         runs-on: ubuntu-latest

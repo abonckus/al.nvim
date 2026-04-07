@@ -1,7 +1,7 @@
 local M = {}
 
 M.setup = function()
-    local ok, ls = pcall(require, "luasnip")
+    local ok, _ = pcall(require, "luasnip")
     if not ok then
         return
     end

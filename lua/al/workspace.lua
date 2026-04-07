@@ -123,7 +123,8 @@ end
 ---@param config? table
 function M.on_set_active_response(err, result, ctx, config)
     if result and not result.success then
-        Utils.error("al: Failed to set active workspace. " .. err.message)
+        local msg = err and err.message or "unknown error"
+        Utils.error("al: Failed to set active workspace. " .. msg)
     end
     if not result then
         return

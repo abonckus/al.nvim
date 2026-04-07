@@ -19,18 +19,18 @@ local _workspace_root = nil
 
 --- Workspace object from code-workspace.nvim (has .folders, .file, .name).
 ---@type table|nil
-local _workspace = nil -- luacheck: ignore 211
+local _workspace = nil
 
 --- Manifest cache: normalised folder path → Manifest
 ---@type table<string, al.Multiproject.Manifest>
-local _manifests = {} -- luacheck: ignore 211 241
+local _manifests = {}
 
 --- The normalised folder path of the currently active AL project.
 ---@type string|nil
-local _active_folder = nil -- luacheck: ignore 211
+local _active_folder = nil
 
 --- Debounce timer for BufEnter.
-local _debounce_timer = vim.uv.new_timer() -- luacheck: ignore 211
+local _debounce_timer = vim.uv.new_timer()
 
 local IS_WINDOWS = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
 
@@ -65,7 +65,7 @@ end
 --- Load and cache app.json + settings for every workspace folder.
 --- Must be called inside a nio.run() task.
 ---@param ws table  workspace object from code-workspace.nvim
-local function _load_manifests(ws) -- luacheck: ignore 211
+local function _load_manifests(ws)
     local global_settings = (Config.workspace or {}).alResourceConfigurationSettings or {}
     local settings_path = (Config.multiproject or {}).settings_path or ".vscode/settings.json"
 
@@ -129,7 +129,7 @@ end
 --- Pure function — reads only from _manifests, no I/O.
 ---@param folder_norm string  normalised absolute path to the active AL project folder
 ---@return al.Multiproject.Closure
-local function _compute_closure(folder_norm) -- luacheck: ignore 211
+local function _compute_closure(folder_norm)
     local manifest = _manifests[folder_norm]
     if not manifest then
         return { closure = { folder_norm }, refs = {}, settings = {} }
@@ -160,7 +160,7 @@ end
 --- Return the normalised project folder path that contains the given buffer, or nil.
 ---@param bufnr integer
 ---@return string|nil folder_norm, string|nil folder_name, integer|nil folder_index
-local function _folder_for_buf(bufnr) -- luacheck: ignore 211
+local function _folder_for_buf(bufnr)
     local fname = norm(vim.api.nvim_buf_get_name(bufnr))
     if fname == "" then
         return nil
@@ -236,7 +236,7 @@ end
 --- Send al/setActiveWorkspace for the given folder. No-op if already active.
 --- Must be called from the main thread (scheduled context).
 ---@param bufnr integer
-local function _switch_active_workspace(bufnr) -- luacheck: ignore 211
+local function _switch_active_workspace(bufnr)
     if not _workspace_root then
         return
     end
@@ -319,16 +319,30 @@ local function _on_lsp_attach(client)
             t.wait()
         end
 
-        -- Probe al/hasProjectClosureLoadedRequest for all folders in parallel
+        -- Poll al/hasProjectClosureLoadedRequest for all folders in parallel
+        -- Fast-path: al/projectsLoadedNotification handler sets true immediately.
+        -- This loop is the fallback for servers that don't send the notification.
         local probe_tasks = {}
         for folder_norm, _ in pairs(_manifests) do
             probe_tasks[#probe_tasks + 1] = nio.run(function()
                 local request = nio.wrap(function(cb)
                     client:request("al/hasProjectClosureLoadedRequest", { workspacePath = folder_norm }, cb)
                 end, 1)
-                local err, result = request()
-                if not err and result then
-                    Workspace.hasProjectClosureLoaded[folder_norm] = result.loaded
+                local deadline = vim.uv.now() + 30000 -- 30 s
+                while not Workspace.hasProjectClosureLoaded[folder_norm] do
+                    if vim.uv.now() >= deadline then
+                        Utils.warn("multiproject: closure load timed out for " .. folder_norm)
+                        Workspace.hasProjectClosureLoaded[folder_norm] = true -- unblock callers
+                        break
+                    end
+                    local err, result = request()
+                    if not err and result then
+                        Workspace.hasProjectClosureLoaded[folder_norm] = result.loaded
+                        if result.loaded then
+                            break
+                        end
+                    end
+                    nio.sleep(500)
                 end
             end)
         end
@@ -384,11 +398,16 @@ function M.on_workspace_loaded(ws)
     -- (triggered by the next BufEnter on an .al file) will send loadManifest.
     nio.run(function()
         _load_manifests(ws)
+        -- If an al_ls client attached while manifests were loading, send loadManifest now
+        for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
+            _on_lsp_attach(client)
+        end
     end)
 end
 
 --- Handle WorkspaceClosed from code-workspace.nvim.
 function M.on_workspace_closed()
+    _debounce_timer:stop()
     _workspace_root = nil
     _workspace = nil
     _manifests = {}

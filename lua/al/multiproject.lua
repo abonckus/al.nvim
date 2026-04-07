@@ -120,6 +120,64 @@ local function _load_manifests(ws) -- luacheck: ignore 211
     end
 end
 
+---@class al.Multiproject.Closure
+---@field closure string[]   list of folder paths for activeWorkspaceClosure
+---@field refs table[]       list of {appId,name,publisher,version} for expectedProjectReferenceDefinitions
+---@field settings table     alResourceConfigurationSettings for the active folder
+
+--- Compute the project-reference closure for the given folder.
+--- Pure function — reads only from _manifests, no I/O.
+---@param folder_norm string  normalised absolute path to the active AL project folder
+---@return al.Multiproject.Closure
+local function _compute_closure(folder_norm) -- luacheck: ignore 211
+    local manifest = _manifests[folder_norm]
+    if not manifest then
+        return { closure = { folder_norm }, refs = {}, settings = {} }
+    end
+
+    local closure = { folder_norm }
+    local refs = {}
+
+    for _, dep in ipairs(manifest.deps) do
+        for dep_path, dep_manifest in pairs(_manifests) do
+            if dep_path ~= folder_norm and dep_manifest.id == dep.id then
+                -- This dependency is another workspace folder → project reference
+                table.insert(closure, dep_path)
+                table.insert(refs, {
+                    appId = dep_manifest.id,
+                    name = dep_manifest.name,
+                    publisher = dep_manifest.publisher,
+                    version = dep_manifest.version,
+                })
+                break
+            end
+        end
+    end
+
+    return { closure = closure, refs = refs, settings = manifest.settings }
+end
+
+--- Return the normalised project folder path that contains the given buffer, or nil.
+---@param bufnr integer
+---@return string|nil folder_norm, string|nil folder_name, integer|nil folder_index
+local function _folder_for_buf(bufnr) -- luacheck: ignore 211
+    local fname = norm(vim.api.nvim_buf_get_name(bufnr))
+    if fname == "" then
+        return nil
+    end
+    -- Walk workspace folders in order so index is stable
+    if not _workspace then
+        return nil
+    end
+    for i, folder in ipairs(_workspace.folders) do
+        local fp = norm(folder.path)
+        if fname == fp or fname:sub(1, #fp + 1) == fp .. "/" then
+            return fp, folder.name, i - 1 -- index is 0-based
+        end
+    end
+    return nil
+end
+
 --- Returns the workspace root directory when a multi-project workspace is active, else nil.
 ---@return string|nil
 function M.workspace_root()

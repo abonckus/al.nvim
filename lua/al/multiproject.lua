@@ -289,7 +289,7 @@ local function _poll_closure_loaded(client, closure_data)
                     break
                 end
                 local err, result = request()
-                if not err and result and result.loaded then
+                if not err and type(result) == "table" and result.loaded then
                     Workspace.hasProjectClosureLoaded[folder_path] = true
                     break
                 end

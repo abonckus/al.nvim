@@ -299,28 +299,21 @@ local function _on_lsp_attach(client)
         return
     end
 
-    -- Capture a valid bufnr now (before entering async context) so that
-    -- client:request calls inside nio tasks can avoid nvim_get_current_buf(),
-    -- which is forbidden in fast-event (libuv callback) context (E5560).
-    local req_bufnr = next(client.attached_buffers)
-    if not req_bufnr then
-        return
-    end
-
     nio.run(function()
         local Workspace = require("al.workspace")
 
-        -- Send al/loadManifest for all folders in parallel
+        -- Send al/loadManifest for all folders in parallel.
+        -- vim.schedule is required inside nio.wrap: client:request calls nvim API
+        -- functions (nvim_buf_is_valid, nvim_get_current_buf) that are forbidden in
+        -- fast-event (libuv callback) context. vim.schedule defers the call to the
+        -- main loop where all nvim APIs are safe.
         local load_tasks = {}
         for folder_norm, manifest in pairs(_manifests) do
             load_tasks[#load_tasks + 1] = nio.run(function()
                 local request = nio.wrap(function(cb)
-                    client:request(
-                        "al/loadManifest",
-                        { projectFolder = folder_norm, manifest = manifest.raw_json },
-                        cb,
-                        req_bufnr
-                    )
+                    vim.schedule(function()
+                        client:request("al/loadManifest", { projectFolder = folder_norm, manifest = manifest.raw_json }, cb)
+                    end)
                 end, 1)
                 local err, result = request()
                 if err or (result and not result.success) then
@@ -339,12 +332,9 @@ local function _on_lsp_attach(client)
         for folder_norm, _ in pairs(_manifests) do
             probe_tasks[#probe_tasks + 1] = nio.run(function()
                 local request = nio.wrap(function(cb)
-                    client:request(
-                        "al/hasProjectClosureLoadedRequest",
-                        { workspacePath = folder_norm },
-                        cb,
-                        req_bufnr
-                    )
+                    vim.schedule(function()
+                        client:request("al/hasProjectClosureLoadedRequest", { workspacePath = folder_norm }, cb)
+                    end)
                 end, 1)
                 local deadline = vim.uv.now() + 30000 -- 30 s
                 while not Workspace.hasProjectClosureLoaded[folder_norm] do

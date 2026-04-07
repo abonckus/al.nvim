@@ -293,7 +293,7 @@ end
 --- Called when an al_ls client attaches in multi-project mode.
 --- Sends al/loadManifest for all workspace folders and probes closure state.
 ---@param client vim.lsp.Client
-local function _on_lsp_attach(client) -- luacheck: ignore 211
+local function _on_lsp_attach(client)
     if not _workspace_root or vim.tbl_isempty(_manifests) then
         return
     end
@@ -339,7 +339,7 @@ end
 
 --- Register global LSP notification handlers for multi-project mode.
 --- Safe to call multiple times — chains to any existing handler.
-local function _register_notification_handlers() -- luacheck: ignore 211
+local function _register_notification_handlers()
     local prev = vim.lsp.handlers["al/projectsLoadedNotification"]
     vim.lsp.handlers["al/projectsLoadedNotification"] = function(err, result, ctx, config)
         if result and type(result.projects) == "table" then
@@ -359,6 +359,93 @@ end
 ---@return string|nil
 function M.workspace_root()
     return _workspace_root
+end
+
+--- Handle WorkspaceLoaded from code-workspace.nvim.
+---@param ws table  workspace object: { file, name, folders: [{path, name}] }
+function M.on_workspace_loaded(ws)
+    _workspace = ws
+    _workspace_root = norm(vim.fn.fnamemodify(ws.file, ":p:h"))
+    _manifests = {}
+    _active_folder = nil
+
+    -- Stop any existing al_ls clients so they restart with the new root_dir
+    for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
+        vim.lsp.stop_client(client.id)
+    end
+
+    -- Load all manifests asynchronously. When done, the next LspAttach
+    -- (triggered by the next BufEnter on an .al file) will send loadManifest.
+    nio.run(function()
+        _load_manifests(ws)
+    end)
+end
+
+--- Handle WorkspaceClosed from code-workspace.nvim.
+function M.on_workspace_closed()
+    _workspace_root = nil
+    _workspace = nil
+    _manifests = {}
+    _active_folder = nil
+
+    -- Stop al_ls clients; they will restart with per-project root_dir on next BufEnter
+    for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
+        vim.lsp.stop_client(client.id)
+    end
+end
+
+--- Register all autocmds. Called once from al.config.setup().
+function M.setup()
+    _register_notification_handlers()
+
+    local group = vim.api.nvim_create_augroup("al_multiproject", { clear = true })
+
+    vim.api.nvim_create_autocmd("User", {
+        group = group,
+        pattern = "WorkspaceLoaded",
+        callback = function(ev)
+            M.on_workspace_loaded(ev.data)
+        end,
+    })
+
+    vim.api.nvim_create_autocmd("User", {
+        group = group,
+        pattern = "WorkspaceClosed",
+        callback = function()
+            M.on_workspace_closed()
+        end,
+    })
+
+    -- LspAttach: in multi-project mode, send loadManifest for all folders
+    vim.api.nvim_create_autocmd("LspAttach", {
+        group = group,
+        callback = function(ev)
+            local client = vim.lsp.get_client_by_id(ev.data.client_id)
+            if client and client.name == "al_ls" and _workspace_root then
+                _on_lsp_attach(client)
+            end
+        end,
+    })
+
+    -- BufEnter: debounced active-workspace switching
+    vim.api.nvim_create_autocmd("BufEnter", {
+        group = group,
+        pattern = "*.al",
+        callback = function(ev)
+            if not _workspace_root then
+                return
+            end
+            local bufnr = ev.buf
+            _debounce_timer:stop()
+            _debounce_timer:start(
+                100,
+                0,
+                vim.schedule_wrap(function()
+                    _switch_active_workspace(bufnr)
+                end)
+            )
+        end,
+    })
 end
 
 return M

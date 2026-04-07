@@ -94,8 +94,7 @@ local function _load_manifests(ws) -- luacheck: ignore 211
             if settings_raw then
                 local sok, settings_parsed = pcall(vim.json.decode, settings_raw)
                 if sok and type(settings_parsed) == "table" then
-                    local al_block = settings_parsed["al"] or {}
-                    proj_al_settings = al_block["alResourceConfigurationSettings"] or {}
+                    proj_al_settings = settings_parsed["al.alResourceConfigurationSettings"] or {}
                 end
             end
 

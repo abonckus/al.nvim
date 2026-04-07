@@ -5,6 +5,8 @@ local M = {}
 ---@type table<string, string>
 M.p2i = {
     ["LuaSnip"] = "luasnip",
+    ["nvim-treesitter"] = "treesitter",
+    ["dap"] = "dap",
     ["noice.nvim"] = "noice",
 }
 

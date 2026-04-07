@@ -16,8 +16,12 @@ local M = {}
 ---@field extendGoToSymbolInWorkspaceIncludeSymbolFiles boolean
 ---@field log {path: string, level: al.LSP.LogLevel }
 
+---@class al.Config.Multiproject
+---@field settings_path string
+
 ---@class al.Config
 ---@field lsp al.Config.LSP
+---@field multiproject al.Config.Multiproject
 local defaults = {
     vscodeExtensionsPath = "~\\.vscode\\extensions\\",
     integrations = {
@@ -58,6 +62,9 @@ local defaults = {
             path = "",
             level = "Normal",
         },
+    },
+    multiproject = {
+        settings_path = ".vscode/settings.json",
     },
 }
 
@@ -132,15 +139,12 @@ function M.setup(opts)
         desc = "al.nvim",
     })
 
-    -- vim.keymap.set("n", "<leader>ab", "<cmd>AL build<cr>", {
-    -- 	desc = "Build AL package",
-    -- })
-
     vim.schedule(function()
         require("al.lsp").setup()
         require("al.debugger").setup()
         require("al.buf").setup()
         require("al.integrations").setup()
+        require("al.multiproject").setup()
     end)
     return options
 end

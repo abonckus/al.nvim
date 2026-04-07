@@ -498,6 +498,18 @@ function M.setup()
             )
         end,
     })
+
+    -- code-workspace.nvim fires WorkspaceLoaded during VimEnter, which runs
+    -- before this setup() call (deferred via vim.schedule in config.setup).
+    -- If a workspace was already loaded before we registered the autocmd above,
+    -- handle it now so workspace_root() is set before any LSP clients start.
+    local ok, cws = pcall(require, "code-workspace")
+    if ok and cws.active then
+        local active = cws.active()
+        if active then
+            M.on_workspace_loaded(active)
+        end
+    end
 end
 
 return M

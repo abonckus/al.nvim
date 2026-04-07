@@ -1,4 +1,5 @@
 *.log
+/.worktrees
 /.repro
 /.tests
 /build

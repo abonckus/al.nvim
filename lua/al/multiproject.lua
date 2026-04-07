@@ -312,7 +312,10 @@ local function _on_lsp_attach(client)
             load_tasks[#load_tasks + 1] = nio.run(function()
                 local request = nio.wrap(function(cb)
                     vim.schedule(function()
-                        client:request("al/loadManifest", { projectFolder = folder_norm, manifest = manifest.raw_json }, cb)
+                        client:request("al/loadManifest", {
+                            projectFolder = folder_norm,
+                            manifest = manifest.raw_json,
+                        }, cb)
                     end)
                 end, 1)
                 local err, result = request()

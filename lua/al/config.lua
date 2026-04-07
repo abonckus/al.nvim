@@ -16,8 +16,12 @@ local M = {}
 ---@field extendGoToSymbolInWorkspaceIncludeSymbolFiles boolean
 ---@field log {path: string, level: al.LSP.LogLevel }
 
+---@class al.Config.Multiproject
+---@field settings_path string
+
 ---@class al.Config
 ---@field lsp al.Config.LSP
+---@field multiproject al.Config.Multiproject
 local defaults = {
     vscodeExtensionsPath = "~\\.vscode\\extensions\\",
     integrations = {
@@ -58,6 +62,9 @@ local defaults = {
             path = "",
             level = "Normal",
         },
+    },
+    multiproject = {
+        settings_path = ".vscode/settings.json",
     },
 }
 

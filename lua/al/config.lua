@@ -148,6 +148,7 @@ function M.setup(opts)
         require("al.debugger").setup()
         require("al.buf").setup()
         require("al.integrations").setup()
+        require("al.multiproject").setup()
     end)
     return options
 end

@@ -267,6 +267,7 @@ local function _switch_active_workspace(bufnr) -- luacheck: ignore 211
         client.handlers["al/activeProjectLoaded"] = prev_handler
         -- Update tracked active folder
         _active_folder = folder_norm
+        M._active_folder = folder_norm
         -- Probe closure loaded state for the new active folder
         if not require("al.workspace").hasProjectClosureLoaded[folder_norm] then
             client:request("al/hasProjectClosureLoadedRequest", { workspacePath = folder_norm }, function(herr, hresult)
@@ -355,6 +356,10 @@ local function _register_notification_handlers()
     end
 end
 
+--- The currently active project folder (exposed for testing).
+---@type string|nil
+M._active_folder = nil
+
 --- Returns the workspace root directory when a multi-project workspace is active, else nil.
 ---@return string|nil
 function M.workspace_root()
@@ -368,6 +373,7 @@ function M.on_workspace_loaded(ws)
     _workspace_root = norm(vim.fn.fnamemodify(ws.file, ":p:h"))
     _manifests = {}
     _active_folder = nil
+    M._active_folder = nil
 
     -- Stop any existing al_ls clients so they restart with the new root_dir
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
@@ -387,6 +393,7 @@ function M.on_workspace_closed()
     _workspace = nil
     _manifests = {}
     _active_folder = nil
+    M._active_folder = nil
 
     -- Stop al_ls clients; they will restart with per-project root_dir on next BufEnter
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do

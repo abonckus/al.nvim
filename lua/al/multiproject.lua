@@ -73,11 +73,11 @@ local function _load_manifests(ws)
         return nio.run(function()
             local folder_norm = norm(folder.path)
 
-            -- Read app.json (required)
+            -- Read app.json — skip silently if missing (non-AL workspace folders
+            -- such as .claude/ are normal and expected in a .code-workspace file)
             local app_json_path = folder.path .. "/" .. "app.json"
             local raw_json = read_file_async(app_json_path)
             if not raw_json then
-                Utils.warn("multiproject: could not read " .. app_json_path)
                 return
             end
 

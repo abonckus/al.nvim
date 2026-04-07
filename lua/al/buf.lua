@@ -27,6 +27,9 @@ end
 ---@param client vim.lsp.Client
 ---@param buf integer
 M.on_attach = function(client, buf)
+    if vim.bo[buf].filetype ~= "al" then
+        return
+    end
     M.set_active_file(client, buf)
     if M.attached[buf] then
         return
@@ -48,6 +51,9 @@ M.on_attach = function(client, buf)
 end
 
 M.set_active_file = function(client, buf)
+    if vim.bo[buf].filetype ~= "al" then
+        return
+    end
     local params = {
         textDocument = {
             uri = "file:///" .. vim.api.nvim_buf_get_name(buf),

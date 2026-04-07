@@ -139,10 +139,6 @@ function M.setup(opts)
         desc = "al.nvim",
     })
 
-    -- vim.keymap.set("n", "<leader>ab", "<cmd>AL build<cr>", {
-    -- 	desc = "Build AL package",
-    -- })
-
     vim.schedule(function()
         require("al.lsp").setup()
         require("al.debugger").setup()

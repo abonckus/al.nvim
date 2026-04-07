@@ -1,0 +1,194 @@
+*al.nvim*  AL language support for Neovim
+
+==============================================================================
+CONTENTS                                                          *al-contents*
+
+  1. Introduction ..................................... |al-introduction|
+  2. Requirements ..................................... |al-requirements|
+  3. Setup ............................................ |al-setup|
+  4. Configuration .................................... |al-configuration|
+  5. Commands ......................................... |al-commands|
+  6. Integrations ..................................... |al-integrations|
+  7. Debugger ......................................... |al-debugger|
+
+==============================================================================
+1. INTRODUCTION                                               *al-introduction*
+
+al.nvim provides AL language support for Neovim, designed for Microsoft
+Dynamics 365 Business Central development.
+
+Features:
+  • LSP integration via the AL Language Server (from the VS Code AL extension)
+  • Debugging support via nvim-dap with a cross-platform debug proxy
+  • Build, authentication, and symbol management commands
+  • Treesitter syntax highlighting
+  • Snippets via LuaSnip
+
+==============================================================================
+2. REQUIREMENTS                                               *al-requirements*
+
+Required:
+  • Neovim >= 0.10
+  • Microsoft AL Language Extension for VS Code (provides the language server)
+
+Optional:
+  • nvim-dap         debugging support
+  • nvim-treesitter  syntax highlighting
+  • LuaSnip          snippet support
+  • noice.nvim       enhanced LSP message display
+  • nui.nvim         UI for auth and symbol download menus
+
+==============================================================================
+3. SETUP                                                           *al-setup*
+
+>lua
+    require("al").setup()
+<
+
+With lazy.nvim: >lua
+    {
+        "your-user/al.nvim",
+        ft = "al",
+        config = true,
+    }
+<
+
+==============================================================================
+4. CONFIGURATION                                           *al-configuration*
+
+Pass a table to |al-setup| to override defaults: >lua
+
+    require("al").setup({
+        -- Path to the directory containing VS Code extensions.
+        vscodeExtensionsPath = "~\\.vscode\\extensions\\",
+
+        integrations = {
+            luasnip = true,
+            noice = true,
+        },
+
+        lsp = {
+            telemetryLevel = "all",    -- "none" | "crash" | "error" | "all"
+            browser = "SystemDefault", -- "SystemDefault" | "Chrome" | "Firefox"
+                                       -- | "Edge" | "EdgeBeta"
+            inlayHintsParameterNames = true,
+            inlayHintsFunctionReturnTypes = true,
+            semanticFolding = true,
+            extendGoToSymbolInWorkspace = true,
+            extendGoToSymbolInWorkspaceResultLimit = 100,
+            extendGoToSymbolInWorkspaceIncludeSymbolFiles = true,
+            log = {
+                path = "",
+                level = "Normal", -- "Debug" | "Verbose" | "Normal"
+                                  -- | "Warning" | "Error"
+            },
+        },
+
+        workspace = {
+            alResourceConfigurationSettings = {
+                assemblyProbingPaths = { "./.netpackages" },
+                codeAnalyzers = {
+                    "${CodeCop}",
+                    "${analyzerFolder}BusinessCentral.LinterCop.dll",
+                },
+                enableCodeAnalysis = true,
+                backgroundCodeAnalysis = true,
+                packageCachePaths = { "./.alpackages" },
+                ruleSetPath = ".vscode/ruleset.json",
+                enableCodeActions = true,
+                incrementalBuild = false,
+                outputAnalyzerStatistics = false,
+                enableExternalRulesets = true,
+            },
+        },
+    })
+<
+
+==============================================================================
+5. COMMANDS                                                     *al-commands*
+
+All commands use the `:AL` prefix.
+
+                                                               *:AL-build*
+:AL build           Build the AL package for the current workspace via the
+                    language server.
+
+                                                    *:AL-downloadSymbols*
+:AL downloadSymbols Download AL symbol packages. Prompts for a launch
+                    configuration if multiple are defined in launch.json.
+                    Authenticates automatically if required.
+
+                                                            *:AL-auth*
+:AL auth            Authenticate against the Business Central server.
+                    Prompts for username and password interactively.
+
+                                          *:AL-clearCredentialsCache*
+:AL clearCredentialsCache
+                    Clear the stored credential cache in the language server.
+
+                                                             *:AL-lsp*
+:AL lsp             Display the current LSP client settings and active
+                    configuration.
+
+                                                      *:AL-definition*
+:AL definition      Jump to the AL definition of the symbol under the cursor
+                    using the AL-specific `al/gotodefinition` LSP request.
+
+==============================================================================
+6. INTEGRATIONS                                             *al-integrations*
+
+Integrations are enabled or disabled in the `integrations` table passed to
+|al-setup|. When using lazy.nvim, integrations are loaded automatically when
+their corresponding plugin loads.
+
+*al-integration-luasnip*
+luasnip ~
+    Loads AL-specific snippets into LuaSnip on demand.
+    Plugin name: `LuaSnip`
+    Enabled by default: yes
+
+*al-integration-noice*
+noice ~
+    Routes AL language server log messages to noice's log (`:Noice log`)
+    without surfacing them as popup notifications.
+    Plugin name: `noice.nvim`
+    Enabled by default: yes
+
+*al-integration-treesitter*
+treesitter ~
+    Registers the AL treesitter parser from `SShadowS/tree-sitter-al`.
+    Loaded automatically when nvim-treesitter is available.
+    Plugin name: `nvim-treesitter`
+
+*al-integration-dap*
+dap ~
+    Configures the nvim-dap debug adapter and default AL launch
+    configurations. Loaded automatically when nvim-dap is available.
+    Plugin name: `dap`
+    See also: |al-debugger|
+
+==============================================================================
+7. DEBUGGER                                                     *al-debugger*
+
+al.nvim routes DAP traffic through a small Go proxy binary. This is required
+because AL EditorServices crashes when it cannot attach to a console handle —
+a problem on all platforms outside VS Code's terminal.
+
+The proxy is bundled in the plugin's `bin/` directory:
+
+  Platform          Binary~
+  Windows           al-debug-proxy.exe
+  Linux             al-debug-proxy
+  macOS (Intel)     al-debug-proxy-darwin
+  macOS (ARM)       al-debug-proxy-darwin-arm64
+
+The proxy is selected automatically based on the current platform.
+
+Debug configurations are read from `.vscode/launch.json` in the workspace
+root. Set `"type": "al"` in your launch configuration. See the default
+configuration fields in |al-configuration| under `default_launch_cfg`.
+
+Refer to |nvim-dap| for how to start and control debug sessions.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

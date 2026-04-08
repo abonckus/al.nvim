@@ -32,6 +32,11 @@ local _active_folder = nil
 --- Debounce timer for BufEnter.
 local _debounce_timer = vim.uv.new_timer()
 
+--- True once _on_lsp_attach has finished sending al/loadManifest to the server.
+--- BufEnter's debounced _switch_active_workspace is gated on this flag to prevent
+--- sending setActiveWorkspace before the server has all manifest metadata.
+local _manifests_sent = false
+
 local IS_WINDOWS = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
 
 ---@param path string
@@ -434,19 +439,29 @@ local function _on_lsp_attach(client)
         for _, t in ipairs(load_tasks) do
             t.wait()
         end
-        -- Trigger workspace switch for the current AL buffer AFTER all al/loadManifest
-        -- responses are received. Force-reset _active_folder so the switch always
-        -- re-evaluates the closure: the BufEnter 100ms debounce may have already
-        -- fired _switch_active_workspace while _load_manifests was still reading
-        -- app.json from disk, producing an incomplete closure (e.g. [Test] without
-        -- Cloud). Resetting _active_folder forces a fresh setActiveWorkspace with
-        -- the correct, fully-populated closure.
+        _manifests_sent = true
+        -- Now that the server has all manifests, trigger workspace switch for
+        -- the current AL buffer. Force-reset _active_folder so the switch always
+        -- re-evaluates the closure with fully-populated _manifests.
         vim.schedule(function()
+            _active_folder = nil
+            M._active_folder = nil
+            -- Find an open AL buffer to switch workspace for.
+            -- The current buffer might be the dashboard/startup screen.
+            local target
             local cur = vim.api.nvim_get_current_buf()
-            if vim.bo[cur].filetype == "al" then
-                _active_folder = nil
-                M._active_folder = nil
-                _switch_active_workspace(cur)
+            if vim.api.nvim_buf_is_loaded(cur) and vim.bo[cur].filetype == "al" then
+                target = cur
+            else
+                for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "al" then
+                        target = buf
+                        break
+                    end
+                end
+            end
+            if target then
+                _switch_active_workspace(target)
             end
         end)
     end)
@@ -498,6 +513,7 @@ function M.on_workspace_loaded(ws)
     _workspace = ws
     _workspace_root = norm(vim.fn.fnamemodify(ws.file, ":p:h"))
     _manifests = {}
+    _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
 
@@ -538,6 +554,7 @@ function M.on_workspace_closed()
     _workspace_root = nil
     _workspace = nil
     _manifests = {}
+    _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
 
@@ -582,12 +599,15 @@ function M.setup()
         end,
     })
 
-    -- BufEnter: debounced active-workspace switching
+    -- BufEnter: debounced active-workspace switching.
+    -- Gated on _manifests_sent so we never send setActiveWorkspace before the
+    -- server has all project manifests (the authoritative switch comes from
+    -- _on_lsp_attach after loadManifest completes).
     vim.api.nvim_create_autocmd("BufEnter", {
         group = group,
         pattern = "*.al",
         callback = function(ev)
-            if not _workspace_root then
+            if not _workspace_root or not _manifests_sent then
                 return
             end
             local bufnr = ev.buf

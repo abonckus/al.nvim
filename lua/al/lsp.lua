@@ -58,7 +58,7 @@ function M.on_progress_notification(err, result, ctx)
     end
 
     vim.api.nvim_exec_autocmds("LspProgress", {
-        pattern = result.percent == 0 and "begin" or "end",
+        pattern = kind,
         modeline = false,
         data = {
             client_id = ctx.client_id,

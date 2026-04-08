@@ -6,6 +6,7 @@
 ---@field raw_json string          full app.json text, passed verbatim to al/loadManifest
 ---@field deps table[]             parsed dependency list from app.json
 ---@field settings table           merged alResourceConfigurationSettings
+---@field folder_path string       original-case path from code-workspace.nvim (for server comms)
 
 local Config = require("al.config")
 local Utils = require("al.utils")
@@ -44,6 +45,31 @@ local IS_WINDOWS = vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1
 local function norm(path)
     local n = vim.fs.normalize(path)
     return IS_WINDOWS and n:lower() or n
+end
+
+--- Convert a path to the format the AL Language Server expects:
+--- original case, backslashes on Windows.
+---@param path string
+---@return string
+local function to_server_path(path)
+    local n = vim.fs.normalize(path)
+    if IS_WINDOWS then
+        return (n:gsub("/", "\\"))
+    end
+    return n
+end
+
+--- Look up the server-format path for a normalised folder key.
+--- Uses the original-case path stored in the manifest, falling back
+--- to converting the normalised key (which loses case on Windows).
+---@param folder_norm string
+---@return string
+local function server_path_for(folder_norm)
+    local m = _manifests[folder_norm]
+    if m and m.folder_path then
+        return to_server_path(m.folder_path)
+    end
+    return to_server_path(folder_norm)
 end
 
 --- Read a file asynchronously. Returns content string or nil on error.
@@ -115,6 +141,7 @@ local function _load_manifests(ws)
                 deps = parsed.dependencies or {},
                 settings = merged_settings,
                 folder_name = folder.name,
+                folder_path = folder.path, -- original-case path from code-workspace.nvim
             }
         end)
     end, ws.folders)
@@ -184,31 +211,38 @@ local function _folder_for_buf(bufnr)
 end
 
 --- Build the al/setActiveWorkspace request body.
+--- All paths sent to the server use original-case backslash format (matching VS Code).
 ---@param folder_norm string
 ---@param folder_name string
 ---@param folder_index integer  0-based
 ---@param closure_data al.Multiproject.Closure
 ---@return table
 local function _build_set_active_request(folder_norm, folder_name, folder_index, closure_data)
+    local sp = server_path_for(folder_norm)
+    local manifest = _manifests[folder_norm]
+    local original = manifest and manifest.folder_path or folder_norm
+    -- uri.path uses forward slashes with leading / (VS Code format)
+    local uri_path = "/" .. vim.fs.normalize(original):gsub("^/", "")
+
     return {
         currentWorkspaceFolderPath = {
             uri = {
                 ["$mid"] = 1,
-                fsPath = folder_norm,
+                fsPath = sp,
                 _sep = 1,
-                external = vim.uri_from_fname(folder_norm),
+                external = vim.uri_from_fname(original),
                 scheme = "file",
-                path = folder_norm,
+                path = uri_path,
             },
             name = folder_name,
             index = folder_index,
         },
         settings = {
-            workspacePath = folder_norm,
+            workspacePath = sp,
             alResourceConfigurationSettings = closure_data.settings,
             setActiveWorkspace = true,
             expectedProjectReferenceDefinitions = closure_data.refs,
-            activeWorkspaceClosure = closure_data.closure,
+            activeWorkspaceClosure = vim.tbl_map(server_path_for, closure_data.closure),
         },
     }
 end
@@ -225,10 +259,10 @@ local function _send_dep_notifications(client, active_folder_norm, closure_data)
             if dep_manifest then
                 client:notify("workspace/didChangeConfiguration", {
                     settings = {
-                        workspacePath = dep_path,
+                        workspacePath = server_path_for(dep_path),
                         alResourceConfigurationSettings = dep_manifest.settings,
                         setActiveWorkspace = false,
-                        dependencyParentWorkspacePath = active_folder_norm,
+                        dependencyParentWorkspacePath = server_path_for(active_folder_norm),
                         expectedProjectReferenceDefinitions = {},
                         activeWorkspaceClosure = {},
                     },
@@ -277,17 +311,21 @@ local function _poll_closure_loaded(client, closure_data)
     local tasks = {}
     for _, folder_path in ipairs(folders) do
         tasks[#tasks + 1] = nio.run(function()
+            local sp = server_path_for(folder_path)
             local request = nio.wrap(function(cb)
                 vim.schedule(function()
                     client:request(
                         "al/hasProjectClosureLoadedRequest",
-                        { workspacePath = folder_path },
+                        { workspacePath = sp },
                         cb
                     )
                 end)
             end, 1)
             local deadline = vim.uv.now() + timeout_ms
-            while not Workspace.hasProjectClosureLoaded[folder_path] do
+            -- Always poll the server directly — do NOT use Workspace.hasProjectClosureLoaded
+            -- as an early-out, because al/projectsLoadedNotification often fires before this
+            -- loop starts and would cause it to exit instantly (no progress visible).
+            while true do
                 if vim.uv.now() >= deadline then
                     Utils.warn("multiproject: closure load timed out for " .. folder_path)
                     Workspace.hasProjectClosureLoaded[folder_path] = true
@@ -449,7 +487,7 @@ local function _on_lsp_attach(client)
                 local request = nio.wrap(function(cb)
                     vim.schedule(function()
                         client:request("al/loadManifest", {
-                            projectFolder = folder_norm,
+                            projectFolder = server_path_for(folder_norm),
                             manifest = manifest.raw_json,
                         }, cb)
                     end)
@@ -465,55 +503,10 @@ local function _on_lsp_attach(client)
         end
         _manifests_sent = true
 
-        -- Prime the root project first (matching VS Code behaviour).
-        -- The AL server needs the root project (rootPath from initialize) loaded
-        -- before dependent projects can resolve symbols. If the user opened Test
-        -- (which depends on Cloud) but Cloud is the root project, we must load
-        -- Cloud first, then switch to Test.
-        local root_folder = M.lsp_root_dir()
-        if root_folder then
-            local root_manifest = _manifests[root_folder]
-            if root_manifest then
-                local root_closure = _compute_closure(root_folder)
-                local root_name = root_manifest.folder_name or root_folder
-                local root_index = 0
-                if _workspace then
-                    for idx, f in ipairs(_workspace.folders) do
-                        if norm(f.path) == root_folder then
-                            root_index = idx - 1
-                            break
-                        end
-                    end
-                end
-                -- Install a one-shot handler for the prime's al/activeProjectLoaded
-                -- so it doesn't consume the handler meant for the user's target project.
-                local prime_done = false
-                local prev_handler = client.handlers["al/activeProjectLoaded"]
-                client.handlers["al/activeProjectLoaded"] = function()
-                    prime_done = true
-                    client.handlers["al/activeProjectLoaded"] = prev_handler
-                    return vim.NIL
-                end
-                local prime_request = nio.wrap(function(cb)
-                    vim.schedule(function()
-                        client:request(
-                            "al/setActiveWorkspace",
-                            _build_set_active_request(root_folder, root_name, root_index, root_closure),
-                            cb
-                        )
-                    end)
-                end, 1)
-                prime_request()
-                -- Wait for the prime's activeProjectLoaded (not time-based — the
-                -- target's one-shot must not be installed until this one fires)
-                local deadline = vim.uv.now() + 10000
-                while not prime_done and vim.uv.now() < deadline do
-                    nio.sleep(50)
-                end
-            end
-        end
-
-        -- Now switch to the user's actual target buffer.
+        -- Switch to the user's actual target buffer. The AL server receives the
+        -- full closure (target + its deps) and handles loading order itself —
+        -- rootPath already points to the root project (via lsp_root_dir()), so
+        -- the server knows which project is the root.
         vim.schedule(function()
             _active_folder = nil
             M._active_folder = nil
@@ -570,6 +563,8 @@ end
 --- Uses the first AL project folder (with app.json) instead of the workspace
 --- parent directory, because the AL server expects rootPath/rootUri to point
 --- to a valid AL project — matching VS Code behaviour.
+--- Returns the original-case path so rootUri in the initialize request matches
+--- what the server expects (not the lowercased norm() output).
 ---@return string|nil
 function M.lsp_root_dir()
     if not _workspace_root or not _workspace then
@@ -578,10 +573,10 @@ function M.lsp_root_dir()
     for _, folder in ipairs(_workspace.folders) do
         local app_json = folder.path .. "/app.json"
         if (vim.uv.fs_stat(app_json) or {}).type == "file" then
-            return norm(folder.path)
+            return folder.path
         end
     end
-    return _workspace_root
+    return nil
 end
 
 --- Returns the AL project folder for the given buffer when in multi-project mode, else nil.

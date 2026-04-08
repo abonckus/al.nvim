@@ -9,7 +9,8 @@ CONTENTS                                                          *al-contents*
   4. Configuration .................................... |al-configuration|
   5. Commands ......................................... |al-commands|
   6. Integrations ..................................... |al-integrations|
-  7. Debugger ......................................... |al-debugger|
+  7. Multi-project workspaces ......................... |al-multiproject|
+  8. Debugger ......................................... |al-debugger|
 
 ==============================================================================
 1. INTRODUCTION                                               *al-introduction*
@@ -18,45 +19,63 @@ al.nvim provides AL language support for Neovim, designed for Microsoft
 Dynamics 365 Business Central development.
 
 Features:
-  • LSP integration via the AL Language Server (from the VS Code AL extension)
-  • Debugging support via nvim-dap with a cross-platform debug proxy
-  • Build, authentication, and symbol management commands
-  • Treesitter syntax highlighting
-  • Snippets via LuaSnip
+  - LSP integration via the AL Language Server (from the VS Code AL extension)
+  - Multi-project workspace support via code-workspace.nvim
+  - Debugging support via nvim-dap with a cross-platform debug proxy
+  - Build, authentication, and symbol management commands
+  - Treesitter syntax highlighting
+  - Snippets via LuaSnip
 
 ==============================================================================
 2. REQUIREMENTS                                               *al-requirements*
 
 Required:
-  • Neovim >= 0.10
-  • Microsoft AL Language Extension for VS Code (provides the language server)
+  - Neovim >= 0.10
+  - Microsoft AL Language Extension for VS Code (provides the language server)
+  - nui.nvim        UI for auth and symbol download menus
+  - nvim-nio        async I/O for multi-project and debugging
 
 Optional:
-  • nvim-dap         debugging support
-  • nvim-treesitter  syntax highlighting
-  • LuaSnip          snippet support
-  • noice.nvim       enhanced LSP message display
-  • nui.nvim         UI for auth and symbol download menus
+  - code-workspace.nvim  multi-project workspace detection
+  - nvim-dap             debugging support
+  - nvim-treesitter      syntax highlighting
+  - LuaSnip              snippet support
+  - noice.nvim           enhanced LSP message display
 
 ==============================================================================
 3. SETUP                                                           *al-setup*
 
->lua
-    require("al").setup()
+With lazy.nvim: >lua
+
+    {
+        "abonckus/al.nvim",
+        ft = "al",
+        dependencies = {
+            "MunifTanjim/nui.nvim",
+            "nvim-neotest/nvim-nio",
+        },
+        opts = {},
+    }
 <
 
-With lazy.nvim: >lua
+With multi-project workspace support: >lua
+
     {
-        "your-user/al.nvim",
+        "abonckus/al.nvim",
         ft = "al",
-        config = true,
+        dependencies = {
+            "MunifTanjim/nui.nvim",
+            "nvim-neotest/nvim-nio",
+            "abonckus/code-workspace.nvim",
+        },
+        opts = {},
     }
 <
 
 ==============================================================================
 4. CONFIGURATION                                           *al-configuration*
 
-Pass a table to |al-setup| to override defaults: >lua
+Pass a table to the setup function via `opts` to override defaults: >lua
 
     require("al").setup({
         -- Path to the directory containing VS Code extensions.
@@ -101,8 +120,59 @@ Pass a table to |al-setup| to override defaults: >lua
                 enableExternalRulesets = true,
             },
         },
+
+        multiproject = {
+            -- Relative path to per-project settings file
+            settings_path = ".vscode/settings.json",
+
+            -- Maximum time (ms) to wait for a closure to load
+            closure_timeout_ms = 300000,
+        },
     })
 <
+
+                                                  *al-configuration-workspace*
+Workspace settings ~
+
+  `assemblyProbingPaths`    Paths to search for .NET assemblies.
+  `codeAnalyzers`           Code analyzers to enable.  Supports ${CodeCop},
+                            ${UICop}, ${PerTenantExtensionCop}, ${AppSourceCop},
+                            and external analyzers.
+  `enableCodeAnalysis`      Enable code analysis.
+  `backgroundCodeAnalysis`  Run code analysis in the background.
+  `packageCachePaths`       Paths for AL package cache.
+  `ruleSetPath`             Path to custom ruleset file.
+  `enableCodeActions`       Enable code actions and quick fixes.
+  `incrementalBuild`        Enable incremental builds.
+  `enableExternalRulesets`  Allow external ruleset files.
+
+                                                       *al-configuration-lsp*
+LSP settings ~
+
+  `telemetryLevel`          Control telemetry data sent to Microsoft.
+  `browser`                 Default browser for AL operations.
+  `inlayHintsParameterNames`
+                            Show parameter names as inlay hints.
+  `inlayHintsFunctionReturnTypes`
+                            Show return types as inlay hints.
+  `semanticFolding`         Enable semantic-based code folding.
+  `extendGoToSymbolInWorkspace`
+                            Enhanced symbol search across workspace.
+  `log`                     Logging configuration for the AL language server.
+
+                                              *al-configuration-multiproject*
+Multi-project settings ~
+
+  `settings_path`           Relative path to per-project settings file.
+                            Each project can override workspace-level
+                            `alResourceConfigurationSettings` by placing them
+                            in this file under the JSON key
+                            `al.alResourceConfigurationSettings`.
+                            Default: `.vscode/settings.json`
+
+  `closure_timeout_ms`      Maximum time in milliseconds to wait for the
+                            project closure to load before timing out.
+                            Default: `300000` (5 minutes)
 
 ==============================================================================
 5. COMMANDS                                                     *al-commands*
@@ -168,7 +238,78 @@ dap ~
     See also: |al-debugger|
 
 ==============================================================================
-7. DEBUGGER                                                     *al-debugger*
+7. MULTI-PROJECT WORKSPACES                                  *al-multiproject*
+
+al.nvim supports multi-project AL workspaces through integration with
+code-workspace.nvim. When a `.code-workspace` file is opened, al.nvim starts
+a single AL Language Server instance shared across all projects, matching
+VS Code's behavior.
+
+                                                     *al-multiproject-setup*
+Setup ~
+
+Install code-workspace.nvim alongside al.nvim: >lua
+
+    {
+        "abonckus/al.nvim",
+        ft = "al",
+        dependencies = {
+            "MunifTanjim/nui.nvim",
+            "nvim-neotest/nvim-nio",
+            "abonckus/code-workspace.nvim",
+        },
+        opts = {},
+    }
+<
+
+Then open your `.code-workspace` file in Neovim. code-workspace.nvim fires
+a `WorkspaceLoaded` autocmd which al.nvim hooks to configure the server.
+
+                                                  *al-multiproject-protocol*
+Protocol flow ~
+
+When the workspace loads:
+  1. All `app.json` manifests are read asynchronously.
+  2. `al/loadManifest` is sent for each project folder.
+  3. The server's `rootPath` is set to the first AL project folder with an
+     `app.json` (alphabetically), matching VS Code.
+
+When a buffer in a project is entered:
+  1. The project-reference closure is computed from `app.json` dependencies.
+  2. `al/setActiveWorkspace` is sent with the full closure.
+  3. On `al/activeProjectLoaded`, `workspace/didChangeConfiguration` is sent
+     for each dependency folder.
+  4. The plugin polls `al/hasProjectClosureLoadedRequest` until all projects
+     in the closure are loaded.
+
+Workspace switching is debounced (100ms) on `BufEnter` and is a no-op when
+the target project is already active.
+
+                                                  *al-multiproject-settings*
+Per-project settings ~
+
+Each project folder can override workspace-level settings by placing them in
+a settings file (default `.vscode/settings.json`). The plugin reads the
+`al.alResourceConfigurationSettings` key and deep-merges it with the global
+defaults, with per-project values taking precedence.
+
+This allows different projects to use different code analyzers, ruleset paths,
+or other workspace settings.
+
+                                                   *al-multiproject-closure*
+Project-reference closures ~
+
+When you open a file in a project, al.nvim computes which other workspace
+projects are dependencies by matching `app.json` dependency `id` fields
+against the `id` fields of other projects in the workspace.
+
+For example, if Test depends on Cloud (by app ID), opening a Test file sends
+`activeWorkspaceClosure = [Test, Cloud]` so the server loads both projects.
+Opening a Cloud file sends `activeWorkspaceClosure = [Cloud]` since it has no
+workspace-local dependencies.
+
+==============================================================================
+8. DEBUGGER                                                     *al-debugger*
 
 al.nvim routes DAP traffic through a small Go proxy binary. This is required
 because AL EditorServices crashes when it cannot attach to a console handle —
@@ -187,6 +328,12 @@ The proxy is selected automatically based on the current platform.
 Debug configurations are read from `.vscode/launch.json` in the workspace
 root. Set `"type": "al"` in your launch configuration. See the default
 configuration fields in |al-configuration| under `default_launch_cfg`.
+
+Building from source (requires Go 1.21+): >bash
+
+    cd proxy-src && ./build.sh     # Unix
+    cd proxy-src && build.bat      # Windows
+<
 
 Refer to |nvim-dap| for how to start and control debug sessions.
 

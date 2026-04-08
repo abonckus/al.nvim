@@ -34,7 +34,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
     "abonckus/al.nvim",
     ft = "al",
     dependencies = {
-        "MunifTanjim/nui.nvim",
         "nvim-neotest/nvim-nio",
     },
     opts = {},
@@ -48,7 +47,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
     "abonckus/al.nvim",
     ft = "al",
     dependencies = {
-        "MunifTanjim/nui.nvim",
         "nvim-neotest/nvim-nio",
         "mfussenegger/nvim-dap",
         "rcarriga/nvim-dap-ui",
@@ -65,7 +63,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
     "abonckus/al.nvim",
     ft = "al",
     dependencies = {
-        "MunifTanjim/nui.nvim",
         "nvim-neotest/nvim-nio",
         "abonckus/code-workspace.nvim",
     },
@@ -135,15 +132,54 @@ require("al").setup({
 
 ## Commands
 
-All commands use the `:AL` prefix.
+| Command | Description |
+|---|---|
+| `:AL config [name]` | Set the active launch configuration for the session |
+| `:AL build` | Build the current AL package |
+| `:AL publish` | Authenticate, build, and publish to Business Central |
+| `:AL downloadSymbols` | Download symbols for a launch configuration |
+| `:AL refreshSymbols` | Refresh symbol references (lightweight) |
+| `:AL downloadSource` | Download source for a symbol |
+| `:AL authenticate` | Authenticate for a launch configuration |
+| `:AL clearCredentialsCache` | Clear cached credentials |
+| `:AL definition` | Go to AL definition (uses al/gotodefinition) |
+| `:AL runObject [Type] [Id]` | Run a Business Central object |
+| `:AL openInBrowser` | Open Business Central web client |
+| `:AL restartLsp` | Restart the AL language server |
+| `:AL eventPublishers` | List event publishers in quickfix |
+| `:AL symbolSearch [query]` | Search AL symbols |
+| `:AL dependencies` | Show package dependencies |
+| `:AL generatePermissionSet` | Generate a permission set AL object |
+| `:AL lsp` | Show AL LSP client info and settings |
 
-| Command                    | Description                                    |
-|----------------------------|------------------------------------------------|
-| `:AL build`                | Build the current AL package                   |
-| `:AL downloadSymbols`      | Download symbols (prompts for launch config)   |
-| `:AL clearCredentialsCache`| Clear cached credentials in the language server|
-| `:AL lsp`                  | Display LSP client info and settings           |
-| `:AL definition`           | Go to definition of symbol under cursor        |
+## Statusline
+
+al.nvim exposes a statusline API for displaying AL project state:
+
+```lua
+local status = require("al.state").statusline()
+-- status.config         -- active launch config name (string|nil)
+-- status.lsp            -- AL language server attached (boolean)
+-- status.closure_loaded -- project closure loaded (boolean)
+-- status.project        -- current project name in multi-project mode (string|nil)
+```
+
+Example lualine component:
+
+```lua
+{
+  function()
+    local s = require("al.state").statusline()
+    if not s.lsp then return "" end
+    local parts = { "AL" }
+    if s.project then parts[#parts+1] = s.project end
+    if s.config then parts[#parts+1] = s.config end
+    if not s.closure_loaded then parts[#parts+1] = "loading..." end
+    return table.concat(parts, " | ")
+  end,
+  cond = function() return vim.bo.filetype == "al" end,
+}
+```
 
 ## Multi-project Workspaces
 
@@ -244,7 +280,6 @@ your-al-project/
 
 | Plugin | Purpose | Required |
 |--------|---------|----------|
-| [nui.nvim] | UI for symbol download and auth menus | Yes |
 | [nvim-nio] | Async I/O for multi-project and debugging | Yes |
 | [code-workspace.nvim] | Multi-project workspace detection | For multi-project |
 | [nvim-dap] | Debug Adapter Protocol | For debugging |
@@ -261,7 +296,6 @@ See [LICENSE](LICENSE).
 <!-- link references -->
 [Microsoft AL Language Extension]: https://marketplace.visualstudio.com/items?itemName=ms-dynamics-smb.al
 [code-workspace.nvim]: https://github.com/abonckus/code-workspace.nvim
-[nui.nvim]: https://github.com/MunifTanjim/nui.nvim
 [nvim-nio]: https://github.com/nvim-neotest/nvim-nio
 [nvim-dap]: https://github.com/mfussenegger/nvim-dap
 [nvim-dap-ui]: https://github.com/rcarriga/nvim-dap-ui

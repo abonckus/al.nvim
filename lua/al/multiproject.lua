@@ -315,11 +315,7 @@ local function _poll_closure_loaded(client, closure_data)
             local sp = server_path_for(folder_path)
             local request = nio.wrap(function(cb)
                 vim.schedule(function()
-                    client:request(
-                        "al/hasProjectClosureLoadedRequest",
-                        { workspacePath = sp },
-                        cb
-                    )
+                    client:request("al/hasProjectClosureLoadedRequest", { workspacePath = sp }, cb)
                 end)
             end, 1)
             local deadline = vim.uv.now() + timeout_ms
@@ -356,11 +352,7 @@ local function _poll_closure_loaded(client, closure_data)
                                 kind = is_done and "end" or "report",
                                 title = "AL loading",
                                 message = is_done and "Project closure loaded"
-                                    or ("Loading project closure (%d/%d) — %s done"):format(
-                                        lc,
-                                        total,
-                                        name
-                                    ),
+                                    or ("Loading project closure (%d/%d) — %s done"):format(lc, total, name),
                                 percentage = math.floor(lc / total * 100),
                                 cancellable = false,
                             },

@@ -30,8 +30,16 @@ local event_publishers = function()
             items[#items + 1] = {
                 text = (ep.name or "Unknown") .. " — " .. (ep.signature or ""),
                 filename = ep.path or "",
-                lnum = ep.location and ep.location.range and ep.location.range.start and (ep.location.range.start.line + 1) or 1,
-                col = ep.location and ep.location.range and ep.location.range.start and (ep.location.range.start.character + 1) or 1,
+                lnum = ep.location
+                        and ep.location.range
+                        and ep.location.range.start
+                        and (ep.location.range.start.line + 1)
+                    or 1,
+                col = ep.location
+                        and ep.location.range
+                        and ep.location.range.start
+                        and (ep.location.range.start.character + 1)
+                    or 1,
             }
         end
 

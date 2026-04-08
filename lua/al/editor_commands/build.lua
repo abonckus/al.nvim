@@ -34,7 +34,7 @@ local build_package = function()
     end
 
     Util.info("Started creating package...")
-    client.request(client, "al/createPackage", params, function(err, result)
+    client:request("al/createPackage", params, function(err, result)
         if not result then
             coroutine.resume(co)
             return

@@ -58,8 +58,6 @@ local publish = function(config)
             Util.error("Publish failed")
         end
     end)
-
-    return coroutine.yield()
 end
 
 return publish

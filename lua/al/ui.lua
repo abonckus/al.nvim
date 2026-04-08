@@ -1,24 +1,5 @@
 local M = {}
 
---- Show a selection menu for launch configurations.
----@param configs al.LaunchConfiguration[]
----@param on_submit fun(config: al.LaunchConfiguration)
----@param on_close? fun()
-M.show_config_selection_menu = function(configs, on_submit, on_close)
-    vim.ui.select(configs, {
-        prompt = "Select launch configuration:",
-        format_item = function(item)
-            return item.name
-        end,
-    }, function(choice)
-        if choice then
-            on_submit(choice)
-        elseif on_close then
-            on_close()
-        end
-    end)
-end
-
 --- Prompt for username input.
 ---@param on_submit fun(value: string)
 ---@param on_cancel fun()

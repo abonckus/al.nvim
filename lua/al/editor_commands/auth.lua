@@ -1,5 +1,6 @@
 local Ui = require("al.ui")
 local Lsp = require("al.lsp")
+local Util = require("al.utils")
 
 ---@type "none" | "success" | "fail" | "cancelled"
 local auth_result = "none"
@@ -51,7 +52,7 @@ local authenticate_co = function(config)
     ---@type vim.lsp.Client?
     local client = Lsp.get_client_for_buf(buf)
     if not client then
-        Ui.error("No AL language server attached to the current buffer.")
+        Util.error("No AL language server attached to the current buffer.")
         auth_result = "fail"
         return auth_result
     end

@@ -227,33 +227,6 @@ cd proxy-src && ./build.sh     # Unix
 cd proxy-src && build.bat      # Windows
 ```
 
-## Completion
-
-The AL Language Server uses non-standard `CompletionItem` structures. If you use
-[blink.cmp](https://github.com/saghen/blink.cmp), add this transform:
-
-```lua
-{
-    "saghen/blink.cmp",
-    opts = {
-        sources = {
-            providers = {
-                lsp = {
-                    transform_items = function(_, items)
-                        for _, item in ipairs(items) do
-                            if item.label.label then
-                                item.label = item.label.label
-                            end
-                        end
-                        return items
-                    end,
-                },
-            },
-        },
-    },
-}
-```
-
 ## Project structure
 
 ```

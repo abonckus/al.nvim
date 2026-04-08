@@ -29,7 +29,10 @@ local open_in_browser = function(config)
     end
 
     Util.info("Opening: " .. url)
-    vim.ui.open(url)
+    local ret, err = vim.ui.open(url)
+    if err then
+        Util.error("Failed to open browser: " .. err)
+    end
 end
 
 return open_in_browser

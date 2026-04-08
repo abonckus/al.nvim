@@ -474,7 +474,6 @@ local function _on_lsp_attach(client)
             if root_manifest then
                 local root_closure = _compute_closure(root_folder)
                 local root_name = root_manifest.folder_name or root_folder
-                -- Find root_folder's index in workspace folders
                 local root_index = 0
                 if _workspace then
                     for idx, f in ipairs(_workspace.folders) do
@@ -484,7 +483,15 @@ local function _on_lsp_attach(client)
                         end
                     end
                 end
-                -- Send setActiveWorkspace for root project (fire-and-forget via vim.schedule)
+                -- Install a one-shot handler for the prime's al/activeProjectLoaded
+                -- so it doesn't consume the handler meant for the user's target project.
+                local prime_done = false
+                local prev_handler = client.handlers["al/activeProjectLoaded"]
+                client.handlers["al/activeProjectLoaded"] = function()
+                    prime_done = true
+                    client.handlers["al/activeProjectLoaded"] = prev_handler
+                    return vim.NIL
+                end
                 local prime_request = nio.wrap(function(cb)
                     vim.schedule(function()
                         client:request(
@@ -495,8 +502,12 @@ local function _on_lsp_attach(client)
                     end)
                 end, 1)
                 prime_request()
-                -- Wait briefly for the server to start processing the root closure
-                nio.sleep(200)
+                -- Wait for the prime's activeProjectLoaded (not time-based — the
+                -- target's one-shot must not be installed until this one fires)
+                local deadline = vim.uv.now() + 10000
+                while not prime_done and vim.uv.now() < deadline do
+                    nio.sleep(50)
+                end
             end
         end
 

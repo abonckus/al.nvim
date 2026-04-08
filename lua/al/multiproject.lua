@@ -345,7 +345,7 @@ local function _poll_closure_loaded(client, closure_data)
                             })
                         end
                         Lsp._open_progress_tokens = {}
-                    end, 10000)
+                    end, 30000)
                     -- Nudge the server to re-analyse open AL buffers now that the
                     -- closure is ready. The initial textDocument/didOpen happened before
                     -- the closure loaded, so the server returned empty diagnostics.

@@ -6,16 +6,38 @@ local State = require("al.state")
 
 local M = {}
 
+--- Helper: find the AL project root for the current buffer.
+---@return string|nil
+local function get_project_root()
+    local buf = vim.api.nvim_get_current_buf()
+    -- Multi-project mode first
+    local mp_ok, mp = pcall(require, "al.multiproject")
+    if mp_ok then
+        local dir = mp.project_for_buf(buf)
+        if dir then
+            return dir
+        end
+    end
+    -- Workspace registry
+    local fname = vim.api.nvim_buf_get_name(buf)
+    local ws = Workspace.find({ path = fname })
+    if ws then
+        return ws.root
+    end
+    -- Walk up to find app.json (works before LSP has initialized)
+    local root = vim.fs.root(buf, "app.json")
+    return root
+end
+
 --- Helper: read launch.json configs for current buffer's workspace.
 ---@return al.LaunchConfiguration[]
 local function get_launch_configurations()
-    local fname = vim.api.nvim_buf_get_name(0)
-    local ws = Workspace.find({ path = fname })
-    if not ws then
+    local root = get_project_root()
+    if not root then
         Util.error("Could not determine AL workspace.")
         return {}
     end
-    local ok, configs = pcall(Util.read_json_file, vim.fs.joinpath(ws.root, ".vscode/launch.json"))
+    local ok, configs = pcall(Util.read_json_file, vim.fs.joinpath(root, ".vscode/launch.json"))
     if not ok or not configs then
         Util.error("Could not read launch.json")
         return {}

@@ -85,7 +85,6 @@ require("al").setup({
 
     integrations = {
         luasnip = true,
-        noice = true,
     },
 
     lsp = {
@@ -253,8 +252,7 @@ your-al-project/
 | [nvim-dap-virtual-text] | Inline debug values | For debugging |
 | [nvim-treesitter] + [tree-sitter-al] | Syntax highlighting | Optional |
 | [LuaSnip] | AL snippets | Optional |
-| [noice.nvim] | Enhanced LSP message routing | Optional |
-| [output-panel.nvim] | LSP server log viewer | Optional |
+| [lsp-output.nvim] | LSP server log viewer | Optional |
 
 ## License
 
@@ -271,5 +269,4 @@ See [LICENSE](LICENSE).
 [nvim-treesitter]: https://github.com/nvim-treesitter/nvim-treesitter
 [tree-sitter-al]: https://github.com/SShadowS/tree-sitter-al
 [LuaSnip]: https://github.com/L3MON4D3/LuaSnip
-[noice.nvim]: https://github.com/folke/noice.nvim
-[output-panel.nvim]: https://github.com/mhanberg/output-panel.nvim
+[lsp-output.nvim]: https://github.com/abonckus/lsp-output.nvim

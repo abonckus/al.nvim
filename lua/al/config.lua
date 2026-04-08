@@ -27,7 +27,7 @@ local defaults = {
     vscodeExtensionsPath = "~\\.vscode\\extensions\\",
     integrations = {
         luasnip = true,
-        noice = true,
+        treesitter = true,
     },
     workspace = {
         alResourceConfigurationSettings = {

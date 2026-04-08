@@ -15,9 +15,9 @@ local function show_in_picker(items, opts)
             format = function(item)
                 return {
                     { item.name or "Unknown", "Function" },
-                    " ",
+                    { " ", "Normal" },
                     { item.kind or "", "Type" },
-                    " ",
+                    { " ", "Normal" },
                     { item.detail or "", "Comment" },
                 }
             end,

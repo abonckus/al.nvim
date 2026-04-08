@@ -15,7 +15,7 @@ local function show_in_picker(items, opts)
             format = function(item)
                 return {
                     { item.name or "Unknown", "Function" },
-                    " ",
+                    { " ", "Normal" },
                     { item.signature or "", "Comment" },
                 }
             end,

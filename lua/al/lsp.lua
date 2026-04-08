@@ -5,6 +5,7 @@ local Utils = require("al.utils")
 
 local M = {}
 M.attached = {} ---@type table<number, number>
+M._open_progress_tokens = {} ---@type table<string, boolean>
 
 ---@param client? vim.lsp.Client
 function M.assert(client)
@@ -49,13 +50,20 @@ function M.on_progress_notification(err, result, ctx)
         kind = "end"
     end
 
+    local token = "al_progress_" .. result.owner
+    if kind == "begin" then
+        M._open_progress_tokens[token] = true
+    elseif kind == "end" then
+        M._open_progress_tokens[token] = nil
+    end
+
     vim.api.nvim_exec_autocmds("LspProgress", {
         pattern = result.percent == 0 and "begin" or "end",
         modeline = false,
         data = {
             client_id = ctx.client_id,
             params = {
-                token = "al_progress_" .. result.owner,
+                token = token,
                 value = {
                     kind = kind,
                     title = "AL loading",

@@ -329,6 +329,21 @@ local function _poll_closure_loaded(client, closure_data)
                     },
                 })
                 if is_done then
+                    -- Dismiss any stuck AL server progress notifications.
+                    -- The server sends al/progressNotification at 0% for dependency
+                    -- projects but may never send 100% (only the active project gets it).
+                    local Lsp = require("al.lsp")
+                    for token in pairs(Lsp._open_progress_tokens) do
+                        vim.api.nvim_exec_autocmds("LspProgress", {
+                            pattern = "end",
+                            modeline = false,
+                            data = {
+                                client_id = client.id,
+                                params = { token = token, value = { kind = "end" } },
+                            },
+                        })
+                    end
+                    Lsp._open_progress_tokens = {}
                     -- Refresh inlay hints now that the closure is ready
                     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
                         if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "al" then

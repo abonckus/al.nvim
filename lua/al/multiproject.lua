@@ -11,6 +11,7 @@
 local Config = require("al.config")
 local Utils = require("al.utils")
 local nio = require("nio")
+local State = require("al.state")
 
 local M = {}
 
@@ -600,6 +601,7 @@ function M.on_workspace_loaded(ws)
     _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
+    State.clear_config()
 
     -- Stop any existing per-project al_ls clients (started before WorkspaceLoaded
     -- fired, when workspace_root() was still nil and root_dir fell back to a
@@ -641,6 +643,7 @@ function M.on_workspace_closed()
     _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
+    State.clear_config()
 
     -- Stop al_ls clients; they will restart with per-project root_dir on next BufEnter
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do

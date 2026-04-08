@@ -329,21 +329,23 @@ local function _poll_closure_loaded(client, closure_data)
                     },
                 })
                 if is_done then
-                    -- Dismiss any stuck AL server progress notifications.
-                    -- The server sends al/progressNotification at 0% for dependency
-                    -- projects but may never send 100% (only the active project gets it).
+                    -- Give the server's own progress notifications time to complete
+                    -- naturally (they may arrive shortly after the closure is confirmed
+                    -- loaded). Only dismiss stuck ones after a grace period.
                     local Lsp = require("al.lsp")
-                    for token in pairs(Lsp._open_progress_tokens) do
-                        vim.api.nvim_exec_autocmds("LspProgress", {
-                            pattern = "end",
-                            modeline = false,
-                            data = {
-                                client_id = client.id,
-                                params = { token = token, value = { kind = "end" } },
-                            },
-                        })
-                    end
-                    Lsp._open_progress_tokens = {}
+                    vim.defer_fn(function()
+                        for token in pairs(Lsp._open_progress_tokens) do
+                            vim.api.nvim_exec_autocmds("LspProgress", {
+                                pattern = "end",
+                                modeline = false,
+                                data = {
+                                    client_id = client.id,
+                                    params = { token = token, value = { kind = "end" } },
+                                },
+                            })
+                        end
+                        Lsp._open_progress_tokens = {}
+                    end, 10000)
                     -- Nudge the server to re-analyse open AL buffers now that the
                     -- closure is ready. The initial textDocument/didOpen happened before
                     -- the closure loaded, so the server returned empty diagnostics.

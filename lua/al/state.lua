@@ -36,6 +36,9 @@ function M.resolve_config(configs)
     local co = coroutine.running()
     assert(co, "resolve_config must be called from a coroutine")
 
+    local sync_result
+    local sync_done = false
+
     vim.ui.select(configs, {
         prompt = "Select launch configuration:",
         format_item = function(item)
@@ -45,9 +48,18 @@ function M.resolve_config(configs)
         if choice then
             M.set_config(choice)
         end
-        coroutine.resume(co, choice)
+        if coroutine.status(co) == "suspended" then
+            coroutine.resume(co, choice)
+        else
+            -- callback fired synchronously before yield
+            sync_result = choice
+            sync_done = true
+        end
     end)
 
+    if sync_done then
+        return sync_result
+    end
     return coroutine.yield()
 end
 

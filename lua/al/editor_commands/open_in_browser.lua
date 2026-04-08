@@ -29,9 +29,13 @@ local open_in_browser = function(config)
     end
 
     Util.info("Opening: " .. url)
-    local ret, err = vim.ui.open(url)
-    if err then
-        Util.error("Failed to open browser: " .. err)
+    if vim.fn.has("win32") == 1 then
+        vim.fn.system({ "cmd", "/c", "start", "", url })
+    else
+        local ret, err = vim.ui.open(url)
+        if err then
+            Util.error("Failed to open browser: " .. err)
+        end
     end
 end
 

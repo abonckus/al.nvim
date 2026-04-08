@@ -435,12 +435,17 @@ local function _on_lsp_attach(client)
             t.wait()
         end
         -- Trigger workspace switch for the current AL buffer AFTER all al/loadManifest
-        -- responses are received. This guarantees the server knows every project's
-        -- manifest before we send al/setActiveWorkspace — without this, the server
-        -- receives setActiveWorkspace referencing Cloud before it has Cloud's manifest.
+        -- responses are received. Force-reset _active_folder so the switch always
+        -- re-evaluates the closure: the BufEnter 100ms debounce may have already
+        -- fired _switch_active_workspace while _load_manifests was still reading
+        -- app.json from disk, producing an incomplete closure (e.g. [Test] without
+        -- Cloud). Resetting _active_folder forces a fresh setActiveWorkspace with
+        -- the correct, fully-populated closure.
         vim.schedule(function()
             local cur = vim.api.nvim_get_current_buf()
             if vim.bo[cur].filetype == "al" then
+                _active_folder = nil
+                M._active_folder = nil
                 _switch_active_workspace(cur)
             end
         end)

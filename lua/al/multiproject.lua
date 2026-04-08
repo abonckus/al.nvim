@@ -344,9 +344,16 @@ local function _poll_closure_loaded(client, closure_data)
                         })
                     end
                     Lsp._open_progress_tokens = {}
-                    -- Refresh inlay hints now that the closure is ready
+                    -- Nudge the server to re-analyse open AL buffers now that the
+                    -- closure is ready. The initial textDocument/didOpen happened before
+                    -- the closure loaded, so the server returned empty diagnostics.
+                    -- A didSave notification triggers re-analysis + fresh diagnostics.
                     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
                         if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "al" then
+                            local uri = vim.uri_from_bufnr(buf)
+                            client:notify("textDocument/didSave", {
+                                textDocument = { uri = uri },
+                            })
                             pcall(vim.lsp.inlay_hint.enable, true, { bufnr = buf })
                         end
                     end

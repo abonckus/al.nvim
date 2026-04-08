@@ -462,9 +462,45 @@ local function _on_lsp_attach(client)
             t.wait()
         end
         _manifests_sent = true
-        -- Now that the server has all manifests, trigger workspace switch for
-        -- the current AL buffer. Force-reset _active_folder so the switch always
-        -- re-evaluates the closure with fully-populated _manifests.
+
+        -- Prime the root project first (matching VS Code behaviour).
+        -- The AL server needs the root project (rootPath from initialize) loaded
+        -- before dependent projects can resolve symbols. If the user opened Test
+        -- (which depends on Cloud) but Cloud is the root project, we must load
+        -- Cloud first, then switch to Test.
+        local root_folder = M.lsp_root_dir()
+        if root_folder then
+            local root_manifest = _manifests[root_folder]
+            if root_manifest then
+                local root_closure = _compute_closure(root_folder)
+                local root_name = root_manifest.folder_name or root_folder
+                -- Find root_folder's index in workspace folders
+                local root_index = 0
+                if _workspace then
+                    for idx, f in ipairs(_workspace.folders) do
+                        if norm(f.path) == root_folder then
+                            root_index = idx - 1
+                            break
+                        end
+                    end
+                end
+                -- Send setActiveWorkspace for root project (fire-and-forget via vim.schedule)
+                local prime_request = nio.wrap(function(cb)
+                    vim.schedule(function()
+                        client:request(
+                            "al/setActiveWorkspace",
+                            _build_set_active_request(root_folder, root_name, root_index, root_closure),
+                            cb
+                        )
+                    end)
+                end, 1)
+                prime_request()
+                -- Wait briefly for the server to start processing the root closure
+                nio.sleep(200)
+            end
+        end
+
+        -- Now switch to the user's actual target buffer.
         vim.schedule(function()
             _active_folder = nil
             M._active_folder = nil

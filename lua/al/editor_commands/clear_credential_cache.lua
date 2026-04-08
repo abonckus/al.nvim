@@ -24,6 +24,7 @@ local clear_credential_cache = function(config)
     client:request("al/clearCredentialsCache", params, function(err, result)
         if err then
             Util.error(err.message)
+            return
         end
         Util.info("Credentials cache cleared for " .. config.name)
     end)

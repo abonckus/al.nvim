@@ -36,7 +36,7 @@ local check_authenticated = function(client, config)
 		return
 	end
 
-	client.request(client, "al/checkAuthenticated", config, function(err, result)
+	client:request("al/checkAuthenticated", config, function(err, result)
 		coroutine.resume(co, result and result.authenticated)
 	end)
 
@@ -83,7 +83,7 @@ local authenticate_co = function(config)
 		},
 	}
 
-	local result = client.request_sync(client, "al/saveUsernamePassword", params, 5000)
+	local result = client:request_sync("al/saveUsernamePassword", params, 5000)
 	if result and result[1] and result[1].error then
 		auth_result = "fail"
 	else

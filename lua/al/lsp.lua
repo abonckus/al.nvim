@@ -27,10 +27,27 @@ function M.attach(client)
 
     M.attached[client.id] = client.id
 
-    -- client.handlers = vim.tbl_extend("force", {}, client.handlers or {})
+    -- The AL Language Server sends CompletionItem.label as {label: string}
+    -- instead of a plain string. Normalize before any completion plugin sees it.
+    local orig_request = client.request
+    client.request = function(self, method, params, callback, ...)
+        if method == "textDocument/completion" and callback then
+            local wrapped = function(err, result, ...)
+                if result then
+                    local items = result.items or (vim.islist(result) and result) or {}
+                    for _, item in ipairs(items) do
+                        if type(item.label) == "table" and item.label.label then
+                            item.label = item.label.label
+                        end
+                    end
+                end
+                return callback(err, result, ...)
+            end
+            return orig_request(self, method, params, wrapped, ...)
+        end
+        return orig_request(self, method, params, callback, ...)
+    end
 
-    -- M.set_handler(client, "workspace/configuration", M.on_workspace_configuration)
-    -- M.set_handler(client, "al/setActiveWorkspace", M.on_set_active_workspace)
     M.set_handler(client, "al/progressNotification", M.on_progress_notification)
     -- The AL server sends al/activeProjectLoaded as a request (with id) expecting an ack
     M.set_handler(client, "al/activeProjectLoaded", function()

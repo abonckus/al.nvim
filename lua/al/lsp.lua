@@ -103,10 +103,12 @@ function M.setup()
         filetypes = { "al" },
         root_markers = { "app.json", ".alpackages" },
         root_dir = function(bufnr, on_dir)
-            -- In multi-project mode all AL files share one client rooted at the workspace dir
-            local ws_root = require("al.multiproject").workspace_root()
-            if ws_root then
-                on_dir(ws_root)
+            -- In multi-project mode all AL files share one client rooted at the
+            -- first AL project folder. The AL server expects rootPath to point to
+            -- a valid project with app.json (not the workspace parent directory).
+            local mp_root = require("al.multiproject").lsp_root_dir()
+            if mp_root then
+                on_dir(mp_root)
                 return
             end
             -- Single-project fallback: walk up to the nearest app.json parent

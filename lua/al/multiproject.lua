@@ -517,6 +517,24 @@ function M.workspace_root()
     return _workspace_root
 end
 
+--- Returns the root directory for the AL LS client in multi-project mode.
+--- Uses the first AL project folder (with app.json) instead of the workspace
+--- parent directory, because the AL server expects rootPath/rootUri to point
+--- to a valid AL project — matching VS Code behaviour.
+---@return string|nil
+function M.lsp_root_dir()
+    if not _workspace_root or not _workspace then
+        return nil
+    end
+    for _, folder in ipairs(_workspace.folders) do
+        local app_json = folder.path .. "/app.json"
+        if (vim.uv.fs_stat(app_json) or {}).type == "file" then
+            return norm(folder.path)
+        end
+    end
+    return _workspace_root
+end
+
 --- Returns the AL project folder for the given buffer when in multi-project mode, else nil.
 --- Use this instead of Workspace.root when building/running per-project commands.
 ---@param bufnr integer

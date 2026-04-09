@@ -5,6 +5,32 @@ local Lsp = require("al.lsp")
 
 local auth = require("al.editor_commands.auth")
 
+local progress_token = "al_publish"
+
+---@param client_id number
+---@param kind "begin"|"report"|"end"
+---@param message string
+---@param percentage? number
+local function emit_progress(client_id, kind, message, percentage)
+    vim.api.nvim_exec_autocmds("LspProgress", {
+        pattern = kind,
+        modeline = false,
+        data = {
+            client_id = client_id,
+            params = {
+                token = progress_token,
+                value = {
+                    kind = kind,
+                    title = "AL Publish",
+                    message = message,
+                    percentage = percentage or 0,
+                    cancellable = false,
+                },
+            },
+        },
+    })
+end
+
 ---@param config al.LaunchConfiguration
 local publish = function(config)
     local buf = vim.api.nvim_get_current_buf()
@@ -15,8 +41,10 @@ local publish = function(config)
     end
 
     -- Authenticate first
+    emit_progress(client.id, "begin", "Authenticating...", 0)
     local auth_result = auth(config)
     if auth_result ~= "success" then
+        emit_progress(client.id, "end", "Authentication failed")
         if auth_result == "cancelled" then
             Util.warn("Publish cancelled — authentication cancelled.")
         else
@@ -33,6 +61,7 @@ local publish = function(config)
         project_dir = ws and ws.root
     end
     if not project_dir then
+        emit_progress(client.id, "end", "Failed")
         Util.error("Could not determine AL project directory.")
         return
     end
@@ -46,15 +75,18 @@ local publish = function(config)
         vSCodeExtensionVersion = Config.language_extension_version,
     }
 
-    Util.info("Publishing package...")
+    emit_progress(client.id, "report", "Building and publishing...", 30)
     client:request("al/fullDependencyPublish", params, function(err, result)
         if err then
+            emit_progress(client.id, "end", "Failed")
             Util.error("Publish failed: " .. (err.message or vim.inspect(err)))
             return
         end
         if result and result.success then
+            emit_progress(client.id, "end", "Published successfully")
             Util.info("Package published successfully")
         else
+            emit_progress(client.id, "end", "Failed")
             Util.error("Publish failed")
         end
     end)

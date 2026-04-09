@@ -32,31 +32,24 @@ symbol_search = function(args)
             return
         end
 
-        if not result or (type(result) == "table" and vim.tbl_isempty(result)) then
+        -- Result is { message, succeeded, symbols } — symbols is the list
+        local symbols = result.symbols or (vim.islist(result) and result) or nil
+        if not symbols or #symbols == 0 then
             Util.info("No symbols found for: " .. query)
             return
         end
 
         local items = {}
-        if vim.islist(result) then
-            for _, item in ipairs(result) do
-                local file = item.location and item.location.uri and vim.uri_to_fname(item.location.uri) or ""
-                local lnum = item.location and item.location.range and (item.location.range.start.line + 1) or 1
-                local col = item.location and item.location.range and (item.location.range.start.character + 1) or 1
-                items[#items + 1] = {
-                    text = (item.name or item.label or "") .. " " .. (item.kind or ""),
-                    name = item.name or item.label,
-                    kind = item.kind,
-                    detail = item.detail,
-                    file = file,
-                    pos = { lnum, col },
-                }
-            end
-        end
-
-        if #items == 0 then
-            Util.info("Symbol search results:\n" .. vim.inspect(result))
-            return
+        for _, item in ipairs(symbols) do
+            items[#items + 1] = {
+                text = (item.name or "") .. " " .. (item.kind or ""),
+                name = item.name,
+                kind = item.kind,
+                signature = item.signature,
+                detail = item.containerName and item.containerName ~= "" and item.containerName or item.docSummary,
+                file = item.path or "",
+                pos = { 1, 0 },
+            }
         end
 
         Picker.pick(items, {

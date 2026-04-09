@@ -30,7 +30,7 @@ local open_in_browser = function(config)
 
     Util.info("Opening: " .. url)
     if vim.fn.has("win32") == 1 then
-        vim.fn.jobstart({ "cmd", "/c", "start", "", url }, { detach = true })
+        vim.fn.jobstart({ "rundll32", "url.dll,FileProtocolHandler", url }, { detach = true })
     else
         local ret, err = vim.ui.open(url)
         if err then

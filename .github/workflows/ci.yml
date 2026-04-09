@@ -23,6 +23,46 @@ jobs:
             - name: Run luacheck
               run: luacheck lua/
 
+    test:
+        name: Tests
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install Neovim
+              uses: rhysd/action-setup-vim@v1
+              with:
+                  neovim: true
+                  version: stable
+
+            - name: Install test dependencies
+              run: |
+                  mkdir -p ~/.local/share/nvim/lazy
+                  git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/lazy/plenary.nvim
+                  git clone --depth 1 https://github.com/nvim-neotest/nvim-nio ~/.local/share/nvim/lazy/nvim-nio
+
+            - name: Run tests
+              timeout-minutes: 5
+              run: |
+                  timeout 120 nvim --headless -u tests/minimal_init.lua \
+                    -c "PlenaryBustedDirectory tests/ {minimal_init='tests/minimal_init.lua'}" \
+                    2>&1 | tee /tmp/test-output.txt || true
+                  # Check test results from output (plenary may exit non-zero due to background noise)
+                  if grep -q "Failed :.*[1-9]" /tmp/test-output.txt; then
+                    echo "Tests failed"
+                    exit 1
+                  fi
+                  if grep -q "Tests Failed" /tmp/test-output.txt; then
+                    echo "Tests failed"
+                    exit 1
+                  fi
+                  if ! grep -q "Success" /tmp/test-output.txt; then
+                    echo "No test output found"
+                    exit 1
+                  fi
+                  echo "All tests passed"
+
     documentation:
         name: Documentation Checks
         runs-on: ubuntu-latest

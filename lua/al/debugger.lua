@@ -93,8 +93,23 @@ function M.cmd()
 end
 
 function M.args()
-    local fname = vim.api.nvim_buf_get_name(0)
-    local ws = Workspace.find({ path = fname })
+    local buf = vim.api.nvim_get_current_buf()
+    local fname = vim.api.nvim_buf_get_name(buf)
+
+    -- Resolve project root: multiproject → workspace registry → walk up to app.json
+    local mp_ok, mp = pcall(require, "al.multiproject")
+    local project_root = mp_ok and mp.project_for_buf(buf) or nil
+    if not project_root then
+        local ws = Workspace.find({ path = fname })
+        project_root = ws and ws.root
+    end
+    if not project_root then
+        project_root = vim.fs.root(buf, "app.json") or vim.fn.getcwd()
+    end
+    -- AL EditorServices expects backslash paths on Windows
+    if vim.fn.has("win32") == 1 then
+        project_root = project_root:gsub("/", "\\")
+    end
 
     return {
         Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),
@@ -108,7 +123,7 @@ function M.args()
         "/extendGoToSymbolInWorkspaceIncludeSymbolFiles:"
         .. tostring(Config.lsp.extendGoToSymbolInWorkspaceIncludeSymbolFiles),
         "/startDebugging",
-        "/projectRoot:" .. ws.root,
+        "/projectRoot:" .. project_root,
     }
 end
 

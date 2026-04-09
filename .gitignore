@@ -1,5 +1,6 @@
 *.log
 docs/
+.claude/
 /.worktrees
 /.repro
 /.tests

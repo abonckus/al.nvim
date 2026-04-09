@@ -115,8 +115,12 @@ function M.set_handler(client, type, handler)
 end
 
 function M.setup()
+    local cmd = M.cmd()
+    if not cmd then
+        return
+    end
     vim.lsp.config.al_ls = {
-        cmd = M.cmd(),
+        cmd = cmd,
         filetypes = { "al" },
         root_markers = { "app.json", ".alpackages" },
         root_dir = function(bufnr, on_dir)
@@ -148,8 +152,12 @@ function M.setup()
 end
 
 function M.cmd()
+    local lsp_path = M.find_lsp_path(Config.vscodeExtensionsPath, false)
+    if not lsp_path then
+        return nil
+    end
     return {
-        M.find_lsp_path(Config.vscodeExtensionsPath, false),
+        lsp_path,
         "/telemetryLevel:" .. Config.lsp.telemetryLevel,
         "/browser:" .. Config.lsp.browser,
         "/inlayHintsParameterNames:" .. tostring(Config.lsp.inlayHintsParameterNames),
@@ -172,9 +180,9 @@ function M.find_lsp_path(basePath, is_dll)
     -- Expand ~ to full path
     local expanded_base = vim.fn.expand(basePath)
 
-    local handle, err = vim.loop.fs_scandir(expanded_base)
+    local handle = vim.loop.fs_scandir(expanded_base)
     if not handle then
-        error("Failed to scan directory: " .. err)
+        return nil
     end
 
     while true do
@@ -199,7 +207,7 @@ function M.find_lsp_path(basePath, is_dll)
     end
 
     if path == "" then
-        error("No matching AL extension found in: " .. expanded_base)
+        return nil
     end
 
     return path

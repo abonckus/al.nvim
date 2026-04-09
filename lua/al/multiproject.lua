@@ -11,6 +11,7 @@
 local Config = require("al.config")
 local Utils = require("al.utils")
 local nio = require("nio")
+local State = require("al.state")
 
 local M = {}
 
@@ -314,11 +315,7 @@ local function _poll_closure_loaded(client, closure_data)
             local sp = server_path_for(folder_path)
             local request = nio.wrap(function(cb)
                 vim.schedule(function()
-                    client:request(
-                        "al/hasProjectClosureLoadedRequest",
-                        { workspacePath = sp },
-                        cb
-                    )
+                    client:request("al/hasProjectClosureLoadedRequest", { workspacePath = sp }, cb)
                 end)
             end, 1)
             local deadline = vim.uv.now() + timeout_ms
@@ -355,11 +352,7 @@ local function _poll_closure_loaded(client, closure_data)
                                 kind = is_done and "end" or "report",
                                 title = "AL loading",
                                 message = is_done and "Project closure loaded"
-                                    or ("Loading project closure (%d/%d) — %s done"):format(
-                                        lc,
-                                        total,
-                                        name
-                                    ),
+                                    or ("Loading project closure (%d/%d) — %s done"):format(lc, total, name),
                                 percentage = math.floor(lc / total * 100),
                                 cancellable = false,
                             },
@@ -600,6 +593,7 @@ function M.on_workspace_loaded(ws)
     _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
+    State.clear_config()
 
     -- Stop any existing per-project al_ls clients (started before WorkspaceLoaded
     -- fired, when workspace_root() was still nil and root_dir fell back to a
@@ -641,6 +635,7 @@ function M.on_workspace_closed()
     _manifests_sent = false
     _active_folder = nil
     M._active_folder = nil
+    State.clear_config()
 
     -- Stop al_ls clients; they will restart with per-project root_dir on next BufEnter
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do

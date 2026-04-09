@@ -141,13 +141,17 @@ function M.setup(opts)
         desc = "al.nvim",
     })
 
-    vim.schedule(function()
-        require("al.lsp").setup()
-        require("al.debugger").setup()
-        require("al.buf").setup()
-        require("al.integrations").setup()
-        require("al.multiproject").setup()
-    end)
+    if not vim.g._al_testing then
+        vim.schedule(function()
+            require("al.lsp").setup()
+            pcall(function()
+                require("al.debugger").setup()
+            end)
+            require("al.buf").setup()
+            require("al.integrations").setup()
+            require("al.multiproject").setup()
+        end)
+    end
     return options
 end
 

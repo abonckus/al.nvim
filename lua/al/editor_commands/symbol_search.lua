@@ -1,77 +1,6 @@
 local Util = require("al.utils")
 local Lsp = require("al.lsp")
-
---- Show results in a snacks picker, telescope, or quickfix fallback.
----@param items table[]
----@param opts { title: string }
-local function show_in_picker(items, opts)
-    -- Try snacks.picker first
-    local snacks_ok, Snacks = pcall(require, "snacks")
-    if snacks_ok and Snacks.picker then
-        Snacks.picker.pick({
-            source = "al_symbol_search",
-            title = opts.title,
-            items = items,
-            format = function(item)
-                return {
-                    { item.name or "Unknown", "Function" },
-                    { " ", "Normal" },
-                    { item.kind or "", "Type" },
-                    { " ", "Normal" },
-                    { item.detail or "", "Comment" },
-                }
-            end,
-            preview = "file",
-            confirm = "jump",
-        })
-        return
-    end
-
-    -- Try telescope
-    local telescope_ok, pickers = pcall(require, "telescope.pickers")
-    if telescope_ok then
-        local finders = require("telescope.finders")
-        local conf = require("telescope.config").values
-        pickers
-            .new({}, {
-                prompt_title = opts.title,
-                finder = finders.new_table({
-                    results = items,
-                    entry_maker = function(item)
-                        local display = (item.name or "Unknown")
-                        if item.kind then
-                            display = display .. " [" .. item.kind .. "]"
-                        end
-                        return {
-                            value = item,
-                            display = display,
-                            ordinal = item.name or "",
-                            filename = item.file,
-                            lnum = item.pos and item.pos[1] or 1,
-                            col = item.pos and item.pos[2] or 0,
-                        }
-                    end,
-                }),
-                previewer = conf.grep_previewer({}),
-                sorter = conf.generic_sorter({}),
-            })
-            :find()
-        return
-    end
-
-    -- Fallback: quickfix
-    local qf_items = {}
-    for _, item in ipairs(items) do
-        qf_items[#qf_items + 1] = {
-            text = (item.name or "Unknown") .. (item.kind and (" [" .. item.kind .. "]") or ""),
-            filename = item.file or "",
-            lnum = item.pos and item.pos[1] or 1,
-            col = item.pos and item.pos[2] or 0,
-        }
-    end
-    vim.fn.setqflist({}, " ", { title = opts.title, items = qf_items })
-    vim.cmd("botright copen")
-end
+local Picker = require("al.picker")
 
 local symbol_search
 ---@param args string[]
@@ -108,7 +37,6 @@ symbol_search = function(args)
             return
         end
 
-        -- Map LSP results to picker items
         local items = {}
         if vim.islist(result) then
             for _, item in ipairs(result) do
@@ -131,8 +59,18 @@ symbol_search = function(args)
             return
         end
 
-        show_in_picker(items, {
+        Picker.pick(items, {
             title = "AL Symbol Search: " .. query,
+            source = "al_symbol_search",
+            format = function(item)
+                return {
+                    { item.name or "Unknown", "Function" },
+                    { " ", "Normal" },
+                    { item.kind or "", "Type" },
+                    { " ", "Normal" },
+                    { item.detail or "", "Comment" },
+                }
+            end,
         })
     end)
 end

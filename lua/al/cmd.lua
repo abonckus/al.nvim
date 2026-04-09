@@ -48,17 +48,18 @@ end
 --- Helper: wrap a config-dependent command in coroutine with config resolution.
 ---@param fn fun(config: al.LaunchConfiguration)
 local function with_config(fn)
-    -- If active config is already set, use it directly — no launch.json needed
-    if State.active_config then
-        fn(vim.tbl_extend("force", Config.default_launch_cfg, State.active_config))
-        return
-    end
-    local configs = get_launch_configurations()
-    if #configs == 0 then
-        return
-    end
+    -- Always wrap in coroutine — commands like authenticate/publish yield internally
     coroutine.resume(coroutine.create(function()
-        local config = State.resolve_config(configs)
+        local config
+        if State.active_config then
+            config = State.active_config
+        else
+            local configs = get_launch_configurations()
+            if #configs == 0 then
+                return
+            end
+            config = State.resolve_config(configs)
+        end
         if config then
             fn(vim.tbl_extend("force", Config.default_launch_cfg, config))
         end

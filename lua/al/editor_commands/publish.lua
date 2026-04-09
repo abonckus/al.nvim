@@ -31,6 +31,47 @@ local function emit_progress(client_id, kind, message, percentage)
     })
 end
 
+--- Install a temporary window/logMessage handler that watches for publish
+--- completion or failure messages from the AL server.
+---@param client vim.lsp.Client
+---@return fun() cleanup function to remove the handler
+local function watch_log_messages(client)
+    local prev_handler = vim.lsp.handlers["window/logMessage"]
+
+    vim.lsp.handlers["window/logMessage"] = function(err, result, ctx, cfg)
+        -- Chain to previous handler
+        if prev_handler then
+            prev_handler(err, result, ctx, cfg)
+        end
+
+        if not result or not result.message then
+            return
+        end
+
+        local msg = result.message
+
+        -- Update progress with compilation/publish status from server logs
+        if msg:match("Compilation started") then
+            emit_progress(client.id, "report", "Compiling...", 30)
+        elseif msg:match("Publishing project") then
+            emit_progress(client.id, "report", "Publishing to server...", 70)
+        elseif msg:match("Done publishing the full dependency tree") then
+            emit_progress(client.id, "end", "Published successfully")
+            Util.info("Package published successfully")
+            -- Restore original handler
+            vim.lsp.handlers["window/logMessage"] = prev_handler
+        elseif msg:match("Failed to publish") or msg:match("PublishingFailed") then
+            emit_progress(client.id, "end", "Publish failed")
+            Util.error("Publish failed: " .. msg)
+            vim.lsp.handlers["window/logMessage"] = prev_handler
+        end
+    end
+
+    return function()
+        vim.lsp.handlers["window/logMessage"] = prev_handler
+    end
+end
+
 ---@param config al.LaunchConfiguration
 local publish = function(config)
     local buf = vim.api.nvim_get_current_buf()
@@ -75,16 +116,18 @@ local publish = function(config)
         vSCodeExtensionVersion = Config.language_extension_version,
     }
 
-    emit_progress(client.id, "report", "Building and publishing...", 30)
+    -- Watch window/logMessage for publish completion since the server
+    -- never sends a JSON-RPC response for al/fullDependencyPublish
+    local cleanup = watch_log_messages(client)
+
+    emit_progress(client.id, "report", "Building...", 10)
     client:request("al/fullDependencyPublish", params, function(err, result)
+        -- This callback may never fire, but handle it if it does
+        cleanup()
         if err then
             emit_progress(client.id, "end", "Failed")
             Util.error("Publish failed: " .. (err.message or vim.inspect(err)))
-            return
         end
-        -- Server returns empty {} on success, errors come via err parameter
-        emit_progress(client.id, "end", "Published successfully")
-        Util.info("Package published successfully")
     end)
 end
 

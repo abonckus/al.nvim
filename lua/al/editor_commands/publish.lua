@@ -82,13 +82,9 @@ local publish = function(config)
             Util.error("Publish failed: " .. (err.message or vim.inspect(err)))
             return
         end
-        if result and result.success then
-            emit_progress(client.id, "end", "Published successfully")
-            Util.info("Package published successfully")
-        else
-            emit_progress(client.id, "end", "Failed")
-            Util.error("Publish failed")
-        end
+        -- Server returns empty {} on success, errors come via err parameter
+        emit_progress(client.id, "end", "Published successfully")
+        Util.info("Package published successfully")
     end)
 end
 

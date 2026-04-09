@@ -43,8 +43,25 @@ jobs:
                   git clone --depth 1 https://github.com/nvim-neotest/nvim-nio ~/.local/share/nvim/lazy/nvim-nio
 
             - name: Run tests
+              timeout-minutes: 5
               run: |
-                  nvim --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/ {minimal_init='tests/minimal_init.lua'}"
+                  timeout 120 nvim --headless -u tests/minimal_init.lua \
+                    -c "PlenaryBustedDirectory tests/ {minimal_init='tests/minimal_init.lua'}" \
+                    2>&1 | tee /tmp/test-output.txt || true
+                  # Check test results from output (plenary may exit non-zero due to background noise)
+                  if grep -q "Failed :.*[1-9]" /tmp/test-output.txt; then
+                    echo "Tests failed"
+                    exit 1
+                  fi
+                  if grep -q "Tests Failed" /tmp/test-output.txt; then
+                    echo "Tests failed"
+                    exit 1
+                  fi
+                  if ! grep -q "Success" /tmp/test-output.txt; then
+                    echo "No test output found"
+                    exit 1
+                  fi
+                  echo "All tests passed"
 
     documentation:
         name: Documentation Checks

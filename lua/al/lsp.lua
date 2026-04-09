@@ -180,7 +180,7 @@ function M.find_lsp_path(basePath, is_dll)
     -- Expand ~ to full path
     local expanded_base = vim.fn.expand(basePath)
 
-    local handle, err = vim.loop.fs_scandir(expanded_base)
+    local handle = vim.loop.fs_scandir(expanded_base)
     if not handle then
         return nil
     end

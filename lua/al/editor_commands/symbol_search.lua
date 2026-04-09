@@ -32,8 +32,6 @@ local function show_in_picker(items, opts)
     if telescope_ok then
         local finders = require("telescope.finders")
         local conf = require("telescope.config").values
-        local previewers = require("telescope.previewers")
-
         pickers
             .new({}, {
                 prompt_title = opts.title,
@@ -75,8 +73,9 @@ local function show_in_picker(items, opts)
     vim.cmd("botright copen")
 end
 
+local symbol_search
 ---@param args string[]
-local symbol_search = function(args)
+symbol_search = function(args)
     local buf = vim.api.nvim_get_current_buf()
     local client = Lsp.get_client_for_buf(buf)
     if not client then

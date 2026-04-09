@@ -106,6 +106,10 @@ function M.args()
     if not project_root then
         project_root = vim.fs.root(buf, "app.json") or vim.fn.getcwd()
     end
+    -- AL EditorServices expects backslash paths on Windows
+    if vim.fn.has("win32") == 1 then
+        project_root = project_root:gsub("/", "\\")
+    end
 
     return {
         Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),

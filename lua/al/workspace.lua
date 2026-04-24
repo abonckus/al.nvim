@@ -114,7 +114,7 @@ M.set_active = function(client, buf)
         settings = settings,
     }
 
-    client.request(client, "al/setActiveWorkspace", request, M.on_set_active_response)
+    client:request("al/setActiveWorkspace", request, M.on_set_active_response)
 end
 
 ---@param err? lsp.ResponseError
@@ -142,8 +142,7 @@ function M.on_set_active_response(err, result, ctx, config)
     end
 
     if not M.hasProjectClosureLoaded[ws.root] then
-        client.request(
-            client,
+        client:request(
             "al/hasProjectClosureLoadedRequest",
             { workspacePath = ws.root },
             function(closure_err, closure_result)

@@ -601,7 +601,7 @@ function M.on_workspace_loaded(ws)
     -- AL buffers so they start a new client with the correct workspace root_dir.
     local had_clients = #vim.lsp.get_clients({ name = "al_ls" }) > 0
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
-        vim.lsp.stop_client(client.id)
+        client:stop()
     end
     if had_clients then
         -- Defer until the stopped clients have detached from their buffers,
@@ -639,7 +639,7 @@ function M.on_workspace_closed()
 
     -- Stop al_ls clients; they will restart with per-project root_dir on next BufEnter
     for _, client in ipairs(vim.lsp.get_clients({ name = "al_ls" })) do
-        vim.lsp.stop_client(client.id)
+        client:stop()
     end
 end
 

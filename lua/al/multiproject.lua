@@ -524,22 +524,29 @@ local function _on_lsp_attach(client)
     end)
 end
 
---- Register global LSP notification handlers for multi-project mode.
---- Safe to call multiple times — chains to any existing handler.
+--- Register LSP notification handlers for multi-project mode.
+--- Uses LspAttach to scope handlers to al_ls clients via client.handlers,
+--- avoiding global vim.lsp.handlers mutation (preferred in nvim 0.10+).
+--- Safe to call multiple times — the augroup is cleared on each call.
 local function _register_notification_handlers()
-    local prev = vim.lsp.handlers["al/projectsLoadedNotification"]
-    vim.lsp.handlers["al/projectsLoadedNotification"] = function(err, result, ctx, config)
-        if result and type(result.projects) == "table" then
-            local Workspace = require("al.workspace")
-            for _, project_path in ipairs(result.projects) do
-                local pnorm = norm(project_path)
-                Workspace.hasProjectClosureLoaded[pnorm] = true
+    vim.api.nvim_create_autocmd("LspAttach", {
+        group = vim.api.nvim_create_augroup("al_multiproject_handlers", { clear = true }),
+        callback = function(ev)
+            local client = vim.lsp.get_client_by_id(ev.data.client_id)
+            if not client or client.name ~= "al_ls" then
+                return
             end
-        end
-        if prev then
-            prev(err, result, ctx, config)
-        end
-    end
+            client.handlers["al/projectsLoadedNotification"] = function(_, result, _, _)
+                if result and type(result.projects) == "table" then
+                    local Workspace = require("al.workspace")
+                    for _, project_path in ipairs(result.projects) do
+                        local pnorm = norm(project_path)
+                        Workspace.hasProjectClosureLoaded[pnorm] = true
+                    end
+                end
+            end
+        end,
+    })
 end
 
 --- The currently active project folder (exposed for testing).

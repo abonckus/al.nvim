@@ -99,7 +99,7 @@ end
 -- Get the path to the appropriate proxy binary for the current platform
 function M.get_proxy_path()
     local plugin_path = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") .. "../../.."
-    local os_name = vim.loop.os_uname().sysname:lower()
+    local os_name = vim.uv.os_uname().sysname:lower()
 
     if os_name:match("windows") then
         -- Check if .exe exists, otherwise use .bat (temporary fallback)
@@ -112,7 +112,7 @@ function M.get_proxy_path()
         end
     elseif os_name:match("darwin") then
         -- Check if we're on Apple Silicon
-        local arch = vim.loop.os_uname().machine:lower()
+        local arch = vim.uv.os_uname().machine:lower()
         if arch:match("arm64") then
             return plugin_path .. "/bin/al-debug-proxy-darwin-arm64"
         else

@@ -33,15 +33,19 @@ end
 
 --- Install a temporary window/logMessage handler that watches for publish
 --- completion or failure messages from the AL server.
+--- Scoped to the specific client via client.handlers to avoid mutating the
+--- global vim.lsp.handlers table.
 ---@param client vim.lsp.Client
 ---@return fun() cleanup function to remove the handler
 local function watch_log_messages(client)
-    local prev_handler = vim.lsp.handlers["window/logMessage"]
+    local prev_handler = client.handlers["window/logMessage"]
 
-    vim.lsp.handlers["window/logMessage"] = function(err, result, ctx, cfg)
-        -- Chain to previous handler
+    client.handlers["window/logMessage"] = function(err, result, ctx, cfg)
+        -- Chain to previous per-client handler (or fall back to global)
         if prev_handler then
             prev_handler(err, result, ctx, cfg)
+        elseif vim.lsp.handlers["window/logMessage"] then
+            vim.lsp.handlers["window/logMessage"](err, result, ctx, cfg)
         end
 
         if not result or not result.message then
@@ -59,16 +63,16 @@ local function watch_log_messages(client)
             emit_progress(client.id, "end", "Published successfully")
             Util.info("Package published successfully")
             -- Restore original handler
-            vim.lsp.handlers["window/logMessage"] = prev_handler
+            client.handlers["window/logMessage"] = prev_handler
         elseif msg:match("Failed to publish") or msg:match("PublishingFailed") then
             emit_progress(client.id, "end", "Publish failed")
             Util.error("Publish failed: " .. msg)
-            vim.lsp.handlers["window/logMessage"] = prev_handler
+            client.handlers["window/logMessage"] = prev_handler
         end
     end
 
     return function()
-        vim.lsp.handlers["window/logMessage"] = prev_handler
+        client.handlers["window/logMessage"] = prev_handler
     end
 end
 

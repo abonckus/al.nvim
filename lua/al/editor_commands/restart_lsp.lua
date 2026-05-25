@@ -10,7 +10,7 @@ local restart_lsp = function()
     Util.info("Restarting AL language server...")
 
     for _, client in ipairs(clients) do
-        vim.lsp.stop_client(client.id)
+        client:stop()
     end
 
     -- Defer to let clients detach, then re-trigger FileType on all AL buffers.

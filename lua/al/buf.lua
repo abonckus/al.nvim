@@ -60,7 +60,7 @@ M.set_active_file = function(client, buf)
         },
         sequence = M.sequence,
     }
-    client.request("al/didChangeActiveDocument", params, function() end)
+    client:request("al/didChangeActiveDocument", params, function() end)
     M.sequence = M.sequence + 1
 end
 

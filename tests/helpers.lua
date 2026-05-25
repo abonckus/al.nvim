@@ -9,6 +9,7 @@ function M.make_mock_client(opts)
         id = opts.id or 1,
         name = "al_ls",
         offset_encoding = "utf-16",
+        handlers = {},
         requests = {},
         request = function(self, method, params, cb)
             table.insert(self.requests, { method = method, params = params })

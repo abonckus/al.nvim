@@ -173,20 +173,20 @@ end
 
 function M.find_lsp_path(basePath, is_dll)
     local path = ""
-    local os_name = vim.loop.os_uname().sysname:lower()
+    local os_name = vim.uv.os_uname().sysname:lower()
     local sep = os_name:match("windows") and "\\" or "/"
     local binary_folder = sep .. "bin" .. sep .. (os_name:match("windows") and "win32" or "linux") .. sep
 
     -- Expand ~ to full path
     local expanded_base = vim.fn.expand(basePath)
 
-    local handle = vim.loop.fs_scandir(expanded_base)
+    local handle = vim.uv.fs_scandir(expanded_base)
     if not handle then
         return nil
     end
 
     while true do
-        local filename, t = vim.loop.fs_scandir_next(handle)
+        local filename, t = vim.uv.fs_scandir_next(handle)
         if not filename then
             break
         end

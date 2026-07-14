@@ -265,7 +265,7 @@ function M.go_to_definition()
 
             if #all_items == 1 then
                 local item = all_items[1]
-                local b = item.bufnr or vim.fn.bufadd(item.filename)
+                local b = item.bufnr or require("al.preview").bufnr_for(item.filename)
 
                 -- Save position in jumplist
                 vim.cmd("normal! m'")
@@ -282,7 +282,10 @@ function M.go_to_definition()
                     end
                 end
                 api.nvim_win_set_buf(w, b)
-                api.nvim_win_set_cursor(w, { item.lnum, item.col - 1 })
+                -- Clamp: a virtual buffer (al-preview://) may not have loaded its
+                -- lines yet, so guard against "Invalid cursor line: out of range".
+                local lnum = math.min(item.lnum, api.nvim_buf_line_count(b))
+                api.nvim_win_set_cursor(w, { lnum, item.col - 1 })
                 vim._with({ win = w }, function()
                     -- Open folds under the cursor
                     vim.cmd("normal! zv")

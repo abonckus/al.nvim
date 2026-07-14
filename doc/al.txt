@@ -203,6 +203,9 @@ All commands use the `:AL` prefix.
                                                       *:AL-definition*
 :AL definition      Jump to the AL definition of the symbol under the cursor
                     using the AL-specific `al/gotodefinition` LSP request.
+                    Definitions in base/symbol objects resolve to read-only
+                    `al-preview://` buffers whose source is fetched from the
+                    language server; no on-disk file is required.
 
 ==============================================================================
 6. INTEGRATIONS                                             *al-integrations*

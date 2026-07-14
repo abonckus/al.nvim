@@ -112,7 +112,7 @@ M.default_launch_cfg = {
     -- Environment settings
     environmentName = "",
     environmentType = nil, -- Can be "OnPrem", "Sandbox", or "Production"
-    sandboxName = "",      -- Deprecated but kept for compatibility
+    sandboxName = "", -- Deprecated but kept for compatibility
     -- Network and timeout settings
     disableHttpRequestTimeout = false,
     -- Snapshot settings: snapshotFileName is intentionally NOT set here.
@@ -150,6 +150,7 @@ function M.setup(opts)
         vim.schedule(function()
             require("al.lsp").setup()
             require("al.buf").setup()
+            require("al.preview").setup()
             require("al.integrations").setup()
             require("al.multiproject").setup()
         end)

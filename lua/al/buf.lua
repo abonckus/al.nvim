@@ -30,6 +30,11 @@ M.on_attach = function(client, buf)
     if vim.bo[buf].filetype ~= "al" then
         return
     end
+    -- al-preview:// buffers are read-only symbol dumps, not the user's active doc;
+    -- skip active-file bookkeeping so we don't tell the server they're focused.
+    if vim.b[buf].al_preview then
+        return
+    end
     M.set_active_file(client, buf)
     if M.attached[buf] then
         return

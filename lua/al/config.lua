@@ -110,11 +110,14 @@ M.default_launch_cfg = {
     -- Environment settings
     environmentName = "",
     environmentType = nil, -- Can be "OnPrem", "Sandbox", or "Production"
-    sandboxName = "", -- Deprecated but kept for compatibility
+    sandboxName = "",      -- Deprecated but kept for compatibility
     -- Network and timeout settings
     disableHttpRequestTimeout = false,
-    -- Snapshot settings
-    snapshotFileName = "",
+    -- Snapshot settings: snapshotFileName is intentionally NOT set here.
+    -- AL EditorServices routes a launch to the snapshot debugger whenever
+    -- snapshotFileName is non-null -- and an empty string "" counts as non-null,
+    -- so it then fails with "nonvalid configuration parameters" and terminates.
+    -- Only set this (to a real snapshot file path) when doing snapshot debugging.
     -- Legacy/compatibility settings
     projectReferenceDefinitions = {},
     useInteractiveLogin = true,

@@ -5,7 +5,6 @@ local Util = require("al.utils")
 
 local dap = require("dap")
 local dap_virtual_text = require("nvim-dap-virtual-text")
-local dapui = require("dapui")
 
 local build_package = require("al.editor_commands.build")
 local auth = require("al.editor_commands.auth")
@@ -14,24 +13,6 @@ local M = {}
 
 function M.setup()
     dap_virtual_text.setup()
-
-    dapui.setup()
-
-    dap.listeners.after.initialize.al = function()
-        dapui.open()
-    end
-
-    dap.listeners.after.terminate.al = function()
-        dapui.close()
-    end
-
-    dap.listeners.after.event_terminated.al = function()
-        dapui.close()
-    end
-
-    dap.listeners.after.event_exited.al = function()
-        dapui.close()
-    end
 
     dap.adapters.al = function(callback, config)
         local auth_result = auth(config)

@@ -123,6 +123,21 @@ Or use the GitHub Actions workflow to build all platform binaries automatically.
 
 ## Troubleshooting
 
+### Reading the proxy log
+
+The proxy writes a diagnostic log for every launch. When `:DapShowLog` only
+shows `Process exit ... 1` with no reason, read this log — it records the
+arguments, whether the child (`dotnet` + AL EditorServices) started, the child's
+own stderr (where AL EditorServices exceptions like "The handle is invalid"
+appear), and the exit code.
+
+- **Default location:** `al-debug-proxy.log` in the system temp dir
+  (`%TEMP%\al-debug-proxy.log` on Windows).
+- **Override:** set the `AL_DEBUG_PROXY_LOG` environment variable to a path of
+  your choice (e.g. via the adapter's `options.env` in the dap config).
+- The proxy also prints `al-debug-proxy logging to <path>` to its stderr on
+  startup.
+
 ### Proxy Not Found
 - Ensure the proxy binary exists in the `bin/` directory
 - Check file permissions on Unix systems (`chmod +x`)

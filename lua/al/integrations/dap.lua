@@ -1,20 +1,22 @@
-local Util = require("al.utils")
 local Config = require("al.config")
 local Lsp = require("al.lsp")
 local Workspace = require("al.workspace")
+local Util = require("al.utils")
 
 local build_package = require("al.editor_commands.build")
 local auth = require("al.editor_commands.auth")
 
 local M = {}
 
-M.setup = function()
+function M.setup()
     local ok, dap = pcall(require, "dap")
     if not ok then
         return
     end
 
-    Util.info("DAP adapter for al loaded")
+    pcall(function()
+        require("nvim-dap-virtual-text").setup()
+    end)
 
     dap.adapters.al = function(callback, config)
         local auth_result = auth(config)
@@ -76,12 +78,26 @@ function M.cmd()
 end
 
 function M.args()
-    local fname = vim.api.nvim_buf_get_name(0)
-    local ws = Workspace.find({ path = fname })
+    local buf = vim.api.nvim_get_current_buf()
+    local fname = vim.api.nvim_buf_get_name(buf)
+
+    -- Resolve project root: multiproject → workspace registry → walk up to app.json
+    local mp_ok, mp = pcall(require, "al.multiproject")
+    local project_root = mp_ok and mp.project_for_buf(buf) or nil
+    if not project_root then
+        local ws = Workspace.find({ path = fname })
+        project_root = ws and ws.root
+    end
+    if not project_root then
+        project_root = vim.fs.root(buf, "app.json") or vim.fn.getcwd()
+    end
+    -- AL EditorServices expects backslash paths on Windows
+    if vim.fn.has("win32") == 1 then
+        project_root = project_root:gsub("/", "\\")
+    end
 
     return {
-        Config.lspPath and Config.lspPath .. ".dll" or Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),
-        "/logLevel:Debug",
+        Lsp.find_lsp_path(Config.vscodeExtensionsPath, true),
         "/telemetryLevel:" .. Config.lsp.telemetryLevel,
         "/browser:" .. Config.lsp.browser,
         "/inlayHintsParameterNames:" .. tostring(Config.lsp.inlayHintsParameterNames),
@@ -92,7 +108,7 @@ function M.args()
         "/extendGoToSymbolInWorkspaceIncludeSymbolFiles:"
             .. tostring(Config.lsp.extendGoToSymbolInWorkspaceIncludeSymbolFiles),
         "/startDebugging",
-        "/projectRoot:" .. ws.root,
+        "/projectRoot:" .. project_root,
     }
 end
 

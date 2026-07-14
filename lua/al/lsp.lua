@@ -175,7 +175,8 @@ function M.find_lsp_path(basePath, is_dll)
     local path = ""
     local os_name = vim.uv.os_uname().sysname:lower()
     local sep = os_name:match("windows") and "\\" or "/"
-    local binary_folder = sep .. "bin" .. sep .. (os_name:match("windows") and "win32" or "linux") .. sep
+    local platform = os_name:match("windows") and "win32" or os_name:match("darwin") and "darwin" or "linux"
+    local binary_folder = sep .. "bin" .. sep .. platform .. sep
 
     -- Expand ~ to full path
     local expanded_base = vim.fn.expand(basePath)

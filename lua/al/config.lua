@@ -24,7 +24,8 @@ local M = {}
 ---@field lsp al.Config.LSP
 ---@field multiproject al.Config.Multiproject
 local defaults = {
-    vscodeExtensionsPath = "~\\.vscode\\extensions\\",
+    vscodeExtensionsPath = vim.uv.os_uname().sysname:lower():match("windows") and "~\\.vscode\\extensions\\"
+        or "~/.vscode/extensions/",
     integrations = {
         luasnip = true,
         treesitter = true,

@@ -55,7 +55,7 @@ local SCHEME = "al-preview://"
 ---@param uri string
 ---@return string
 local function key(uri)
-    local head, _ctx, rest = uri:match("^(al%-preview://[^/]+)/([^/]+)/(.+)$")
+    local head, _, rest = uri:match("^(al%-preview://[^/]+)/([^/]+)/(.+)$")
     return rest and (head .. "/*/" .. rest) or uri
 end
 

@@ -39,7 +39,6 @@
             "al.luasnippets.al.report"
             "al.luasnippets.al.report-dataitem"
             "al.luasnippets.al.report-layout"
-            "al.debugger"
           ];
         };
       };

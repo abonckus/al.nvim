@@ -29,6 +29,7 @@ local defaults = {
     integrations = {
         luasnip = true,
         treesitter = true,
+        dap = true,
     },
     workspace = {
         alResourceConfigurationSettings = {
@@ -148,9 +149,6 @@ function M.setup(opts)
     if not vim.g._al_testing then
         vim.schedule(function()
             require("al.lsp").setup()
-            pcall(function()
-                require("al.debugger").setup()
-            end)
             require("al.buf").setup()
             require("al.integrations").setup()
             require("al.multiproject").setup()

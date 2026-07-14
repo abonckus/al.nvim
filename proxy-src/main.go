@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
@@ -37,35 +39,103 @@ type DAPMessage struct {
 // Global channel to signal termination
 var terminateSignal = make(chan bool, 1)
 
+// Logging: the proxy owns stdin/stdout for the DAP protocol, so it must never
+// log there. All diagnostics go to a file (and the child's stderr is teed into
+// it too — that's where AL EditorServices' real errors surface).
+var (
+	logger  *log.Logger
+	logFile *os.File
+)
+
+// initLogger opens the log file (path overridable via AL_DEBUG_PROXY_LOG,
+// default <temp>/al-debug-proxy.log) and announces it on stderr so nvim-dap's
+// adapter log points at it. Falls back to stderr if the file can't be opened.
+func initLogger() {
+	logPath := os.Getenv("AL_DEBUG_PROXY_LOG")
+	if logPath == "" {
+		logPath = filepath.Join(os.TempDir(), "al-debug-proxy.log")
+	}
+	// ponytail: single shared append file; fine for one debug session at a time.
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
+		logf("failed to open log file %q: %v (logging to stderr)", logPath, err)
+		return
+	}
+	logFile = f
+	logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	fmt.Fprintf(os.Stderr, "al-debug-proxy logging to %s\n", logPath)
+}
+
+func logf(format string, args ...interface{}) {
+	if logger != nil {
+		logger.Printf(format, args...)
+	}
+}
+
+// truncateForLog trims whitespace and caps a DAP payload so a single huge
+// message can't blow up the log.
+func truncateForLog(s string) string {
+	const max = 4000
+	s = strings.TrimSpace(s)
+	if len(s) > max {
+		return s[:max] + "...(truncated)"
+	}
+	return s
+}
+
+// fatalf logs the reason then exits. Every early-exit path uses this so a
+// non-zero exit is never silent.
+func fatalf(code int, format string, args ...interface{}) {
+	logf(format, args...)
+	os.Exit(code)
+}
+
+// childStderr tees the child process's stderr to both the proxy's stderr and
+// the log file, so AL EditorServices exceptions are captured even if nvim-dap
+// drops adapter stderr.
+func childStderr() io.Writer {
+	if logFile != nil {
+		return io.MultiWriter(os.Stderr, logFile)
+	}
+	return os.Stderr
+}
+
 func main() {
+	initLogger()
+	logf("=== al-debug-proxy starting (pid %d) ===", os.Getpid())
+	logf("args: %v", os.Args)
+
 	// Check if we have arguments to pass to dotnet
 	if len(os.Args) < minArgsRequired {
-		os.Exit(1)
+		fatalf(1, "not enough arguments: need at least %d, got %d", minArgsRequired, len(os.Args))
 	}
 
 	// Prepare the command: dotnet + all arguments passed to this proxy
 	args := append([]string{"dotnet"}, os.Args[1:]...)
+	logf("launching child: %v", args)
 	// #nosec G204 - Command arguments are intentionally passed from command line
 	cmd := exec.Command(args[0], args[1:]...)
 
 	// Create pipes for communication
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		os.Exit(1)
+		fatalf(1, "failed to create stdin pipe: %v", err)
 	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		os.Exit(1)
+		fatalf(1, "failed to create stdout pipe: %v", err)
 	}
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = childStderr()
 
 	// Configure process attributes (Windows-specific settings handled in separate function)
 	configureProcess(cmd)
 
 	// Start the AL EditorServices process
 	if err := cmd.Start(); err != nil {
-		os.Exit(1)
+		fatalf(1, "failed to start child process %q (is dotnet on PATH?): %v", args[0], err)
 	}
+	logf("child started (pid %d)", cmd.Process.Pid)
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -73,7 +143,8 @@ func main() {
 
 	// Handle cleanup in a goroutine
 	go func() {
-		<-sigChan
+		sig := <-sigChan
+		logf("received signal %v, killing child", sig)
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill() // Ignore error as process may have already exited
 		}
@@ -85,22 +156,41 @@ func main() {
 	go handleOutput(stdoutPipe)
 
 	// Wait for either the AL EditorServices process to complete or termination signal
+	var waitErr error
 	done := make(chan bool)
 	go func() {
-		_ = cmd.Wait() // Ignore error, we just need to know when process completes
+		waitErr = cmd.Wait()
 		done <- true
 	}()
 
 	select {
 	case <-done:
-		// Process completed normally
+		// Process completed on its own
 	case <-terminateSignal:
-		// Received terminate command, give a moment for any final responses
-		// then exit gracefully
+		// Received terminate command from the client: kill and exit cleanly.
+		logf("terminate request received from client, killing child")
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill() // Ignore error as process may have already exited
 		}
+		<-done // let cmd.Wait return
+		logf("proxy exiting 0 (terminated by client)")
+		os.Exit(0)
 	}
+
+	// Child exited on its own: mirror its exit code so a real failure is visible
+	// to nvim-dap instead of being swallowed as a clean exit.
+	code := 0
+	if waitErr != nil {
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			code = exitErr.ExitCode()
+		} else {
+			code = 1
+		}
+		logf("child exited with error: %v (proxy exiting %d)", waitErr, code)
+	} else {
+		logf("child exited cleanly (proxy exiting 0)")
+	}
+	os.Exit(code)
 }
 
 // handleInput processes input from stdin and forwards to the process
@@ -111,9 +201,11 @@ func handleInput(writer io.WriteCloser) {
 	buffer := make([]byte, bufferSize)
 	var accumulated []byte
 
+	logf("handleInput: started")
 	for {
 		n, err := os.Stdin.Read(buffer)
 		if n > 0 {
+			logf("stdin: read %d bytes from client", n)
 			accumulated = append(accumulated, buffer[:n]...)
 
 			// Process complete messages from accumulated data
@@ -129,6 +221,7 @@ func handleInput(writer io.WriteCloser) {
 
 		if err != nil {
 			if err == io.EOF {
+				logf("stdin: EOF, input loop ending (client closed connection)")
 				// Forward any remaining data
 				if len(accumulated) > 0 {
 					if _, writeErr := writer.Write(accumulated); writeErr != nil {
@@ -195,6 +288,7 @@ func processInputBuffer(data []byte, writer io.WriteCloser) (processed, remainin
 
 	// Extract and check the JSON content for terminate command
 	jsonContent := string(data[jsonStart : jsonStart+contentLength])
+	logf("client --> child: %s", truncateForLog(jsonContent))
 	checkForTerminate(jsonContent)
 
 	// Forward the complete message unchanged
@@ -230,6 +324,8 @@ func checkForTerminate(jsonContent string) {
 func handleOutput(reader io.ReadCloser) {
 	defer reader.Close()
 
+	logf("handleOutput: started")
+
 	// Simple approach: read all data and process it as a stream
 	buffer := make([]byte, bufferSize)
 	var accumulated []byte
@@ -255,6 +351,7 @@ func handleOutput(reader io.ReadCloser) {
 
 		if err != nil {
 			if err == io.EOF {
+				logf("child stdout: EOF, output loop ending (child closed its output)")
 				// Output any remaining data
 				if len(accumulated) > 0 {
 					// #nosec G104 - stdout write errors are not critical for proxy operation
@@ -315,6 +412,7 @@ func processBuffer(data []byte) (processed, remaining []byte) {
 
 	// Extract and process the JSON content
 	jsonContent := string(data[jsonStart : jsonStart+contentLength])
+	logf("child --> client: %s", truncateForLog(jsonContent))
 	modifiedContent := processMessage(jsonContent)
 
 	// Build the complete message

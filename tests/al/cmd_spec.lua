@@ -66,7 +66,9 @@ describe("al.cmd", function()
             local notified = false
             local orig = vim.notify
             vim.notify = function(msg)
-                if msg:match("Usage:") then notified = true end
+                if msg:match("Usage:") then
+                    notified = true
+                end
             end
             cmd.execute({ args = "" })
             assert.is_true(notified)
@@ -77,7 +79,9 @@ describe("al.cmd", function()
             local notified = false
             local orig = vim.notify
             vim.notify = function(msg)
-                if msg:match("Unknown command") then notified = true end
+                if msg:match("Unknown command") then
+                    notified = true
+                end
             end
             cmd.execute({ args = "nonexistent" })
             assert.is_true(notified)
@@ -86,16 +90,31 @@ describe("al.cmd", function()
 
         it("calls correct command handler", function()
             local called = false
-            cmd.commands.definition = function() called = true end
+            cmd.commands.definition = function()
+                called = true
+            end
             cmd.execute({ args = "definition" })
             assert.is_true(called)
         end)
 
         it("passes args to command handler", function()
             local received_args
-            cmd.commands.symbolSearch = function(args) received_args = args end
+            cmd.commands.symbolSearch = function(args)
+                received_args = args
+            end
             cmd.execute({ args = "symbolSearch Customer" })
             assert.are.same({ "Customer" }, received_args)
+        end)
+    end)
+
+    describe("debugWithoutPublishing", function()
+        it("is a registered command", function()
+            assert.is_function(cmd.commands.debugWithoutPublishing)
+        end)
+
+        it("is offered by completion", function()
+            local matches = cmd.complete("debug", "AL debug")
+            assert.is_true(vim.tbl_contains(matches, "debugWithoutPublishing"))
         end)
     end)
 end)

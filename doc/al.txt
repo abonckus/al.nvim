@@ -183,6 +183,16 @@ All commands use the `:AL` prefix.
 :AL build           Build the AL package for the current workspace via the
                     language server.
 
+                                              *:AL-debugWithoutPublishing*
+:AL debugWithoutPublishing
+                    Start a debug session without publishing. Uses the
+                    active launch configuration (or prompts to select one)
+                    and debugs the app already deployed to the server —
+                    the local project is not rebuilt or republished.
+                    Publish first with F5 or your publish flow if the
+                    deployed app is out of date. Equivalent to VS Code's
+                    "AL: Debug without publishing".
+
                                                     *:AL-downloadSymbols*
 :AL downloadSymbols Download AL symbol packages. Prompts for a launch
                     configuration if multiple are defined in launch.json.

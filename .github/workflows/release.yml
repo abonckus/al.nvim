@@ -114,30 +114,38 @@ jobs:
                       COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" --reverse)
                   fi
 
-                  # Parse conventional commits
-                  echo "$COMMITS" | while IFS= read -r commit; do
+                  # Parse conventional commits into per-category bucket files,
+                  # so each header is emitted once with all its bullets grouped.
+                  BUCKET_DIR=$(mktemp -d)
+                  while IFS= read -r commit; do
                       if [[ $commit =~ ^feat(\(.+\))?!?: ]]; then
-                          echo "### ✨ Features" >> CHANGELOG.md
-                          echo "- ${commit#feat*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          echo "- ${commit#feat*: }" >> "$BUCKET_DIR/feat"
                       elif [[ $commit =~ ^fix(\(.+\))?: ]]; then
-                          echo "### 🐛 Bug Fixes" >> CHANGELOG.md
-                          echo "- ${commit#fix*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          echo "- ${commit#fix*: }" >> "$BUCKET_DIR/fix"
                       elif [[ $commit =~ ^docs(\(.+\))?: ]]; then
-                          echo "### 📚 Documentation" >> CHANGELOG.md
-                          echo "- ${commit#docs*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          echo "- ${commit#docs*: }" >> "$BUCKET_DIR/docs"
                       elif [[ $commit =~ ^perf(\(.+\))?: ]]; then
-                          echo "### ⚡ Performance" >> CHANGELOG.md
-                          echo "- ${commit#perf*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          echo "- ${commit#perf*: }" >> "$BUCKET_DIR/perf"
                       elif [[ $commit =~ ^refactor(\(.+\))?: ]]; then
-                          echo "### 🔧 Refactoring" >> CHANGELOG.md
-                          echo "- ${commit#refactor*: }" >> CHANGELOG.md
+                          echo "- ${commit#refactor*: }" >> "$BUCKET_DIR/refactor"
+                      fi
+                  done <<< "$COMMITS"
+
+                  # Emit each section once, in a fixed order, only if it has entries.
+                  emit_section() {
+                      local file="$1" heading="$2"
+                      if [ -s "$BUCKET_DIR/$file" ]; then
+                          echo "### $heading" >> CHANGELOG.md
+                          cat "$BUCKET_DIR/$file" >> CHANGELOG.md
                           echo "" >> CHANGELOG.md
                       fi
-                  done
+                  }
+                  emit_section feat "✨ Features"
+                  emit_section fix "🐛 Bug Fixes"
+                  emit_section perf "⚡ Performance"
+                  emit_section refactor "🔧 Refactoring"
+                  emit_section docs "📚 Documentation"
+                  rm -rf "$BUCKET_DIR"
 
                   # Check for breaking changes
                   if echo "$COMMITS" | grep -q "BREAKING CHANGE\|!:"; then

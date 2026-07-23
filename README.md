@@ -21,9 +21,15 @@ multi-project workspaces for Microsoft Dynamics 365 Business Central.
 
 ## Requirements
 
-- Neovim >= 0.10
+- Neovim >= 0.11
 - [Microsoft AL Language Extension] for VS Code (provides the language server
   binary)
+
+## Health check
+
+Run `:checkhealth al` to diagnose your setup — it checks your Neovim version,
+the AL language server (VS Code AL extension), the debug proxy, `dotnet` and
+the AL compiler tool, and optional integrations.
 
 ## Installation
 

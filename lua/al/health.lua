@@ -1,4 +1,3 @@
--- lua/al/health.lua
 local M = {}
 
 local Config = require("al.config")
@@ -38,7 +37,9 @@ local function check_lsp_server()
     if vim.uv.fs_stat(bin) then
         h.ok(("AL extension v%s\n  server: %s"):format(tostring(Config.language_extension_version), bin))
     else
-        h.error("AL extension folder found but server binary missing: " .. bin)
+        h.error("AL extension folder found but server binary missing: " .. bin, {
+            "Reinstall the 'AL Language' (ms-dynamics-smb.al) VS Code extension",
+        })
     end
 end
 
@@ -112,10 +113,10 @@ local function check_integrations()
     -- NOTE: vim.treesitter.language.add returns `true` when the parser loads and
     -- `nil` (no error thrown) when it is missing — so a bare `pcall(...)` truthiness
     -- test would false-OK. Check the RETURN value, not just that pcall didn't error.
-    if integ.treesitter == false then
+    if not integ.treesitter then
         h.info("treesitter: disabled")
     elseif not pcall(require, "nvim-treesitter") then
-        h.warn("treesitter: 'nvim-treesitter' not installed")
+        h.warn("treesitter: 'nvim-treesitter' not installed", { "Install nvim-treesitter/nvim-treesitter" })
     else
         local ok, added = pcall(vim.treesitter.language.add, "al")
         if ok and added then

@@ -134,13 +134,35 @@ local function check_integrations()
     end
 end
 
---- Report whether the current directory / buffer sits inside an AL project.
---- Informational only -- :checkhealth can be run from anywhere.
+--- Report the AL project context. In multi-project mode (a .code-workspace
+--- loaded via code-workspace.nvim) report the active workspace; otherwise look
+--- for a single app.json / .alpackages from the current buffer. Informational
+--- only -- :checkhealth can be run from anywhere.
 local function check_workspace()
     h.start("Workspace")
+
+    -- pcall: al.multiproject requires nio at load; degrade to the single-project
+    -- check if it (or its dep) is unavailable rather than erroring the report.
+    local ok_mp, mp = pcall(require, "al.multiproject")
+    local ws = ok_mp and mp.workspace_root() or nil
+    if ws then
+        local al_root = mp.lsp_root_dir()
+        if al_root then
+            h.ok(
+                ("multi-project workspace active: %s\n  AL project root: %s"):format(
+                    vim.fs.normalize(ws),
+                    vim.fs.normalize(al_root)
+                )
+            )
+        else
+            h.warn("multi-project workspace active but no folder contains app.json: " .. vim.fs.normalize(ws))
+        end
+        return
+    end
+
     local root = vim.fs.root(0, { "app.json", ".alpackages" })
     if root then
-        h.ok("AL project root: " .. root)
+        h.ok("AL project root: " .. vim.fs.normalize(root))
     else
         h.info("No AL project (app.json / .alpackages) found from the current directory")
     end

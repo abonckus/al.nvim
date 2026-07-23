@@ -559,6 +559,13 @@ function M.workspace_root()
     return _workspace_root
 end
 
+--- Returns the workspace folder list ({ path, name }) when a multi-project
+--- workspace is active, else nil.
+---@return table[]|nil
+function M.workspace_folders()
+    return _workspace and _workspace.folders or nil
+end
+
 --- Returns the root directory for the AL LS client in multi-project mode.
 --- Uses the first AL project folder (with app.json) instead of the workspace
 --- parent directory, because the AL server expects rootPath/rootUri to point

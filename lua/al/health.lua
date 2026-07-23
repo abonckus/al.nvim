@@ -146,16 +146,27 @@ local function check_workspace()
     local ok_mp, mp = pcall(require, "al.multiproject")
     local ws = ok_mp and mp.workspace_root() or nil
     if ws then
-        local al_root = mp.lsp_root_dir()
-        if al_root then
-            h.ok(
-                ("multi-project workspace active: %s\n  AL project root: %s"):format(
-                    vim.fs.normalize(ws),
-                    vim.fs.normalize(al_root)
-                )
+        local folders = mp.workspace_folders() or {}
+        h.ok(
+            ("multi-project workspace active: %s (%d folder%s)"):format(
+                vim.fs.normalize(ws),
+                #folders,
+                #folders == 1 and "" or "s"
             )
-        else
-            h.warn("multi-project workspace active but no folder contains app.json: " .. vim.fs.normalize(ws))
+        )
+        local al_count = 0
+        for _, f in ipairs(folders) do
+            local path = vim.fs.normalize(f.path)
+            local name = f.name or vim.fs.basename(path)
+            if (vim.uv.fs_stat(f.path .. "/app.json") or {}).type == "file" then
+                al_count = al_count + 1
+                h.ok(("  %s: %s"):format(name, path))
+            else
+                h.info(("  %s: %s (no app.json)"):format(name, path))
+            end
+        end
+        if al_count == 0 then
+            h.warn("no workspace folder contains app.json")
         end
         return
     end

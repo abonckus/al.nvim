@@ -37,10 +37,14 @@ local function check_lsp_server()
         })
         return
     end
-    if vim.uv.fs_stat(bin) then
-        h.ok(("AL extension v%s\n  server: %s"):format(tostring(Config.language_extension_version), bin))
+    -- On Windows find_lsp_path returns the host WITHOUT the `.exe` that libuv
+    -- appends when it spawns the LSP, so stat both names or we false-negative.
+    local exists = vim.uv.fs_stat(bin) or (vim.fn.has("win32") == 1 and vim.uv.fs_stat(bin .. ".exe"))
+    local shown = vim.fs.normalize(bin)
+    if exists then
+        h.ok(("AL extension v%s\n  server: %s"):format(tostring(Config.language_extension_version), shown))
     else
-        h.error("AL extension folder found but server binary missing: " .. bin, {
+        h.error("AL extension folder found but server binary missing: " .. shown, {
             "Reinstall the 'AL Language' (ms-dynamics-smb.al) VS Code extension",
         })
     end

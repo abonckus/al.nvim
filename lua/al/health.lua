@@ -89,6 +89,43 @@ local function check_external_tools()
     end
 end
 
+--- Verify each enabled integration's backing plugin is loadable.
+--- treesitter additionally needs the `al` parser installed.
+local function check_integrations()
+    h.start("Optional integrations")
+    local integ = Config.integrations or {}
+
+    local function report(enabled, name, mod, hint)
+        if not enabled then
+            h.info(name .. ": disabled")
+        elseif pcall(require, mod) then
+            h.ok(name .. ": " .. mod .. " loaded")
+        else
+            h.warn(name .. ": '" .. mod .. "' not installed", hint and { hint } or nil)
+        end
+    end
+
+    report(integ.dap, "dap", "dap", "Install nvim-dap for debugging")
+    report(integ.luasnip, "luasnip", "luasnip", "Install L3MON4D3/LuaSnip for snippets")
+
+    -- treesitter: plugin present AND the `al` parser installed.
+    -- NOTE: vim.treesitter.language.add returns `true` when the parser loads and
+    -- `nil` (no error thrown) when it is missing — so a bare `pcall(...)` truthiness
+    -- test would false-OK. Check the RETURN value, not just that pcall didn't error.
+    if integ.treesitter == false then
+        h.info("treesitter: disabled")
+    elseif not pcall(require, "nvim-treesitter") then
+        h.warn("treesitter: 'nvim-treesitter' not installed")
+    else
+        local ok, added = pcall(vim.treesitter.language.add, "al")
+        if ok and added then
+            h.ok("treesitter: nvim-treesitter loaded, `al` parser installed")
+        else
+            h.warn("treesitter: `al` parser not installed", { "Run :TSUpdate al (parser: SShadowS/tree-sitter-al)" })
+        end
+    end
+end
+
 --- Report whether the current directory / buffer sits inside an AL project.
 --- Informational only -- :checkhealth can be run from anywhere.
 local function check_workspace()
@@ -106,6 +143,7 @@ function M.check()
     check_lsp_server()
     check_debug_proxy()
     check_external_tools()
+    check_integrations()
     check_workspace()
 end
 

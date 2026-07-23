@@ -11,6 +11,7 @@ CONTENTS                                                          *al-contents*
   6. Integrations ..................................... |al-integrations|
   7. Multi-project workspaces ......................... |al-multiproject|
   8. Debugger ......................................... |al-debugger|
+  9. Health check ..................................... |al-health|
 
 ==============================================================================
 1. INTRODUCTION                                               *al-introduction*
@@ -30,7 +31,7 @@ Features:
 2. REQUIREMENTS                                               *al-requirements*
 
 Required:
-  - Neovim >= 0.10
+  - Neovim >= 0.11
   - Microsoft AL Language Extension for VS Code (provides the language server)
   - nui.nvim        UI for auth and symbol download menus
   - nvim-nio        async I/O for multi-project and debugging
@@ -339,6 +340,21 @@ Building from source (requires Go 1.21+): >bash
 <
 
 Refer to |nvim-dap| for how to start and control debug sessions.
+
+==============================================================================
+9. HEALTH CHECK                                                     *al-health*
+
+Run `:checkhealth al` to diagnose your installation. It reports:
+
+  - Neovim version (0.11+ required)
+  - AL Language Server binary (from the VS Code AL extension)
+  - Debug proxy binary
+  - `dotnet` and the AL compiler tool (`al`) on PATH
+  - Optional integrations (nvim-dap, LuaSnip, nvim-treesitter + `al` parser)
+  - Whether the current directory is inside an AL project
+
+Errors point at what is missing; warnings mark optional pieces. See
+|al-requirements| for what each item needs.
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

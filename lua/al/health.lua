@@ -68,10 +68,20 @@ local function check_external_tools()
         h.warn("dotnet not on PATH", { "Needed for debugging and the AL compiler tool; not needed for LSP" })
     end
 
-    -- ponytail: bare name match on `al`; `al` is a common command name so a
-    -- false positive is possible. Upgrade to parsing `al help` only if it bites.
+    -- `al` collides with the .NET Framework Assembly Linker (al.exe), common on
+    -- Windows dev boxes. Disambiguate via `al --version`: the BC AL CLI prints a
+    -- bare semver as its first line; the Assembly Linker prints a "Microsoft (R)
+    -- ... Assembly Linker" banner that does not start with a digit.
     if vim.fn.executable("al") == 1 then
-        h.ok("AL compiler tool (`al`) on PATH")
+        local first = vim.trim((vim.fn.system({ "al", "--version" }) or ""):match("^[^\r\n]*") or "")
+        if first:match("^%d+%.%d+%.%d+") then
+            h.ok("AL compiler tool (`al`) v" .. first)
+        else
+            h.warn("`al` on PATH is not the BC AL compiler (Assembly Linker?): " .. first, {
+                "Expected Microsoft.Dynamics.BusinessCentral.Development.Tools",
+                "Install: dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools",
+            })
+        end
     else
         h.warn("AL compiler tool (`al`) not on PATH", {
             "Install: dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools",

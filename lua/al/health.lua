@@ -1,6 +1,10 @@
 -- lua/al/health.lua
 local M = {}
 
+local Config = require("al.config")
+local Lsp = require("al.lsp")
+local Dap = require("al.integrations.dap")
+
 local h = vim.health
 
 --- Report the Neovim version. 0.11 is the effective floor because
@@ -14,6 +18,64 @@ local function check_nvim()
             "Neovim 0.11+ required (LSP setup uses vim.lsp.config/enable with no fallback); found "
                 .. tostring(vim.version())
         )
+    end
+end
+
+--- Resolve the AL Language Server binary via the VS Code AL extension.
+--- find_lsp_path does NOT stat the file, so stat it here to catch a matched
+--- extension folder with a missing/renamed binary (a silent failure today).
+local function check_lsp_server()
+    h.start("AL language server (VS Code AL extension)")
+    local base = Config.vscodeExtensionsPath
+    local bin = Lsp.find_lsp_path(base, false)
+    if not bin then
+        h.error("AL extension not found under " .. vim.fn.expand(base), {
+            "Install the 'AL Language' (ms-dynamics-smb.al) VS Code extension",
+            "Or set vscodeExtensionsPath in setup()",
+        })
+        return
+    end
+    if vim.uv.fs_stat(bin) then
+        h.ok(("AL extension v%s\n  server: %s"):format(tostring(Config.language_extension_version), bin))
+    else
+        h.error("AL extension folder found but server binary missing: " .. bin)
+    end
+end
+
+--- The Go debug proxy is optional (only debugging needs it).
+local function check_debug_proxy()
+    h.start("Debug proxy")
+    local proxy = Dap.get_proxy_path()
+    if vim.fn.filereadable(proxy) == 1 then
+        h.ok("proxy binary: " .. proxy)
+    else
+        h.warn("Debug proxy binary not found: " .. proxy, {
+            "Build it: cd al.nvim/proxy-src && build.bat (Windows) or ./build.sh (Unix)",
+            "Only affects debugging; LSP and build work without it",
+        })
+    end
+end
+
+--- dotnet: needed by the debug proxy (execs `dotnet <EditorServices>.dll`)
+--- and by the AL compiler tool. LSP host is a native exe and does not need it.
+--- `al`: the AL compiler shipped as a dotnet global tool.
+local function check_external_tools()
+    h.start("External tools")
+
+    if vim.fn.executable("dotnet") == 1 then
+        h.ok("dotnet on PATH")
+    else
+        h.warn("dotnet not on PATH", { "Needed for debugging and the AL compiler tool; not needed for LSP" })
+    end
+
+    -- ponytail: bare name match on `al`; `al` is a common command name so a
+    -- false positive is possible. Upgrade to parsing `al help` only if it bites.
+    if vim.fn.executable("al") == 1 then
+        h.ok("AL compiler tool (`al`) on PATH")
+    else
+        h.warn("AL compiler tool (`al`) not on PATH", {
+            "Install: dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools",
+        })
     end
 end
 
@@ -31,6 +93,9 @@ end
 
 function M.check()
     check_nvim()
+    check_lsp_server()
+    check_debug_proxy()
+    check_external_tools()
     check_workspace()
 end
 

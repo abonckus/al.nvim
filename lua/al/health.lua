@@ -25,6 +25,9 @@ end
 --- extension folder with a missing/renamed binary (a silent failure today).
 local function check_lsp_server()
     h.start("AL language server (VS Code AL extension)")
+    -- Reading Config respects the user's configured vscodeExtensionsPath. On a
+    -- not-yet-setup plugin this first Config access triggers config.lua's lazy
+    -- setup() (config.lua __index) -- intended; do not "fix" by hardcoding the default.
     local base = Config.vscodeExtensionsPath
     local bin = Lsp.find_lsp_path(base, false)
     if not bin then
@@ -111,7 +114,7 @@ local function check_integrations()
 
     -- treesitter: plugin present AND the `al` parser installed.
     -- NOTE: vim.treesitter.language.add returns `true` when the parser loads and
-    -- `nil` (no error thrown) when it is missing — so a bare `pcall(...)` truthiness
+    -- `nil` (no error thrown) when it is missing, so a bare `pcall(...)` truthiness
     -- test would false-OK. Check the RETURN value, not just that pcall didn't error.
     if not integ.treesitter then
         h.info("treesitter: disabled")

@@ -24,7 +24,9 @@ function M.setup()
             Util.error("Authentication failed: " .. auth_result)
         end
 
-        build_package()
+        if M.should_build(config) then
+            build_package()
+        end
 
         callback({
             type = "executable",
@@ -71,6 +73,14 @@ function M.setup()
             validateServerCertificate = true,
         },
     }
+end
+
+--- Whether to build the package before debugging. Skipped for
+--- "debug without publishing" (justDebug), which debugs the deployed app.
+---@param config table
+---@return boolean
+function M.should_build(config)
+    return not config.justDebug
 end
 
 function M.cmd()

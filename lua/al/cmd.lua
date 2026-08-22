@@ -94,6 +94,11 @@ M.commands = {
             require("al.editor_commands.publish")(config)
         end)
     end,
+    debugWithoutPublishing = function()
+        with_config(function(config)
+            require("al.editor_commands.debug_without_publishing")(config)
+        end)
+    end,
     downloadSymbols = function()
         with_config(function(config)
             require("al.editor_commands.download_symbols")(config)

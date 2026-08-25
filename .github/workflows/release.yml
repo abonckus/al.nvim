@@ -101,64 +101,52 @@ jobs:
               run: |
                   LATEST_TAG="${{ steps.latest_tag.outputs.latest_tag }}"
 
-                  # Generate changelog from conventional commits
-                  echo "# Changelog" > CHANGELOG.md
-                  echo "" >> CHANGELOG.md
-
-                  # Get commits since last tag
+                  # Get commits since last tag (all commits for the first release)
                   if [ "$LATEST_TAG" = "v0.0.0" ]; then
-                      # First release - get all commits
                       COMMITS=$(git log --pretty=format:"%s" --reverse)
                   else
-                      # Get commits since last tag
                       COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" --reverse)
                   fi
 
-                  # Parse conventional commits
-                  echo "$COMMITS" | while IFS= read -r commit; do
+                  # Group conventional commits by type, then emit each section once.
+                  FEATURES=""
+                  FIXES=""
+                  DOCS=""
+                  PERF=""
+                  REFACTORS=""
+                  BREAKING=""
+
+                  while IFS= read -r commit; do
                       if [[ $commit =~ ^feat(\(.+\))?!?: ]]; then
-                          echo "### ✨ Features" >> CHANGELOG.md
-                          echo "- ${commit#feat*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          FEATURES="${FEATURES}- ${commit#feat*: }\n"
                       elif [[ $commit =~ ^fix(\(.+\))?: ]]; then
-                          echo "### 🐛 Bug Fixes" >> CHANGELOG.md
-                          echo "- ${commit#fix*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          FIXES="${FIXES}- ${commit#fix*: }\n"
                       elif [[ $commit =~ ^docs(\(.+\))?: ]]; then
-                          echo "### 📚 Documentation" >> CHANGELOG.md
-                          echo "- ${commit#docs*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          DOCS="${DOCS}- ${commit#docs*: }\n"
                       elif [[ $commit =~ ^perf(\(.+\))?: ]]; then
-                          echo "### ⚡ Performance" >> CHANGELOG.md
-                          echo "- ${commit#perf*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          PERF="${PERF}- ${commit#perf*: }\n"
                       elif [[ $commit =~ ^refactor(\(.+\))?: ]]; then
-                          echo "### 🔧 Refactoring" >> CHANGELOG.md
-                          echo "- ${commit#refactor*: }" >> CHANGELOG.md
-                          echo "" >> CHANGELOG.md
+                          REFACTORS="${REFACTORS}- ${commit#refactor*: }\n"
                       fi
-                  done
+                      if [[ $commit =~ "BREAKING CHANGE" ]] || [[ $commit =~ "!:" ]]; then
+                          BREAKING="${BREAKING}- ${commit}\n"
+                      fi
+                  done <<< "$COMMITS"
 
-                  # Check for breaking changes
-                  if echo "$COMMITS" | grep -q "BREAKING CHANGE\|!:"; then
-                      echo "### ⚠️ BREAKING CHANGES" >> CHANGELOG.md
-                      echo "$COMMITS" | grep -E "(BREAKING CHANGE|!:)" | while IFS= read -r commit; do
-                          echo "- ${commit}" >> CHANGELOG.md
-                      done
-                      echo "" >> CHANGELOG.md
+                  CHANGELOG=""
+                  [ -n "$BREAKING" ]  && CHANGELOG="${CHANGELOG}### ⚠️ Breaking Changes\n${BREAKING}\n"
+                  [ -n "$FEATURES" ]  && CHANGELOG="${CHANGELOG}### ✨ Features\n${FEATURES}\n"
+                  [ -n "$FIXES" ]     && CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n${FIXES}\n"
+                  [ -n "$PERF" ]      && CHANGELOG="${CHANGELOG}### ⚡ Performance\n${PERF}\n"
+                  [ -n "$REFACTORS" ] && CHANGELOG="${CHANGELOG}### 🔧 Refactoring\n${REFACTORS}\n"
+                  [ -n "$DOCS" ]      && CHANGELOG="${CHANGELOG}### 📚 Documentation\n${DOCS}\n"
+
+                  if [ -z "$CHANGELOG" ]; then
+                      CHANGELOG="### Changes\n- Various improvements and bug fixes\n"
                   fi
 
-                  # If no conventional commits found, add a generic entry
-                  if [ ! -s CHANGELOG.md ] || [ "$(wc -l < CHANGELOG.md)" -le 2 ]; then
-                      echo "### Changes" >> CHANGELOG.md
-                      echo "- Various improvements and bug fixes" >> CHANGELOG.md
-                      echo "" >> CHANGELOG.md
-                  fi
-
-                  # Output changelog for use in release
-                  CHANGELOG_CONTENT=$(cat CHANGELOG.md)
                   echo "changelog<<EOF" >> $GITHUB_OUTPUT
-                  echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+                  printf '%b' "$CHANGELOG" >> $GITHUB_OUTPUT
                   echo "EOF" >> $GITHUB_OUTPUT
 
     build-release-assets:

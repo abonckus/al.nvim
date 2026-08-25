@@ -21,8 +21,9 @@ local function check_nvim()
 end
 
 --- Resolve the AL Language Server binary via the VS Code AL extension.
---- find_lsp_path does NOT stat the file, so stat it here to catch a matched
---- extension folder with a missing/renamed binary (a silent failure today).
+--- find_lsp_path returns the legacy bin/<platform>/ path when no binary exists
+--- in either layout, so stat it here to catch a matched extension folder with
+--- a missing/renamed binary (a silent failure today).
 local function check_lsp_server()
     h.start("AL language server (VS Code AL extension)")
     -- Reading Config respects the user's configured vscodeExtensionsPath. On a

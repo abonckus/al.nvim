@@ -1,6 +1,6 @@
 describe("al.lsp.find_lsp_path", function()
     local lsp
-    local orig_uname, orig_scandir, orig_scandir_next, orig_expand
+    local orig_uname, orig_scandir, orig_scandir_next, orig_expand, orig_stat
 
     before_each(function()
         package.loaded["al.lsp"] = nil
@@ -9,6 +9,7 @@ describe("al.lsp.find_lsp_path", function()
         orig_scandir = vim.uv.fs_scandir
         orig_scandir_next = vim.uv.fs_scandir_next
         orig_expand = vim.fn.expand
+        orig_stat = vim.uv.fs_stat
 
         -- Fake an extensions dir containing one AL extension folder.
         vim.fn.expand = function(p) return p end
@@ -26,6 +27,7 @@ describe("al.lsp.find_lsp_path", function()
         vim.uv.fs_scandir = orig_scandir
         vim.uv.fs_scandir_next = orig_scandir_next
         vim.fn.expand = orig_expand
+        vim.uv.fs_stat = orig_stat
     end)
 
     local function stub_os(sysname)
@@ -48,5 +50,21 @@ describe("al.lsp.find_lsp_path", function()
         stub_os("Linux")
         local path = lsp.find_lsp_path("~/.vscode/extensions/", true)
         assert.is_truthy(path:match("/bin/linux/Microsoft%.Dynamics%.Nav%.EditorServices%.Host%.dll$"))
+    end)
+
+    -- AL extension 18.x dropped the bin/<platform>/ subfolder; the host now
+    -- sits directly in bin/. Prefer whichever layout actually exists on disk.
+    it("falls back to flat bin/ when bin/<platform>/ is missing (AL 18+ layout)", function()
+        stub_os("Windows_NT")
+        vim.uv.fs_stat = function(p)
+            -- only the flat host .exe exists
+            if p:match("\\bin\\Microsoft%.Dynamics%.Nav%.EditorServices%.Host%.exe$") then
+                return { type = "file" }
+            end
+            return nil
+        end
+        local path = lsp.find_lsp_path("~\\.vscode\\extensions\\", false)
+        assert.is_truthy(path:match("\\bin\\Microsoft%.Dynamics%.Nav%.EditorServices%.Host$"))
+        assert.is_nil(path:match("win32"))
     end)
 end)

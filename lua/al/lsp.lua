@@ -199,9 +199,16 @@ end
 function M.find_lsp_path(basePath, is_dll)
     local path = ""
     local os_name = vim.uv.os_uname().sysname:lower()
-    local sep = os_name:match("windows") and "\\" or "/"
-    local platform = os_name:match("windows") and "win32" or os_name:match("darwin") and "darwin" or "linux"
-    local binary_folder = sep .. "bin" .. sep .. platform .. sep
+    local is_windows = os_name:match("windows") ~= nil
+    local sep = is_windows and "\\" or "/"
+    local platform = is_windows and "win32" or os_name:match("darwin") and "darwin" or "linux"
+    local host = is_dll and "Microsoft.Dynamics.Nav.EditorServices.Host.dll"
+        or "Microsoft.Dynamics.Nav.EditorServices.Host"
+
+    -- The Windows host is spawned without its .exe suffix (libuv appends it).
+    local function exists(p)
+        return vim.uv.fs_stat(p) ~= nil or (is_windows and vim.uv.fs_stat(p .. ".exe") ~= nil)
+    end
 
     -- Expand ~ to full path
     local expanded_base = vim.fn.expand(basePath)
@@ -220,14 +227,13 @@ function M.find_lsp_path(basePath, is_dll)
             local match = filename:match("ms%-dynamics%-smb.al%-(.+)")
             if match then
                 Config.language_extension_version = match
-                path = expanded_base
-                    .. (expanded_base:sub(-1) == sep and "" or sep)
-                    .. filename
-                    .. binary_folder
-                    .. (
-                        is_dll and "Microsoft.Dynamics.Nav.EditorServices.Host.dll"
-                        or "Microsoft.Dynamics.Nav.EditorServices.Host"
-                    )
+                local ext_dir = expanded_base .. (expanded_base:sub(-1) == sep and "" or sep) .. filename
+                -- AL <= 17.x ships bin/<platform>/<host>; AL 18+ flattened it to
+                -- bin/<host>. Take whichever exists, else keep the legacy path so
+                -- callers (checkhealth) can still report a missing binary.
+                local legacy = ext_dir .. sep .. "bin" .. sep .. platform .. sep .. host
+                local flat = ext_dir .. sep .. "bin" .. sep .. host
+                path = (not exists(legacy) and exists(flat)) and flat or legacy
             end
         end
     end

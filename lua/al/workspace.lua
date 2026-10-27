@@ -35,7 +35,11 @@ M.get_root = function(client, buf)
 end
 
 M.get = function(client, buf)
-    local root = vim.fs.normalize(M.get_root(client, buf))
+    local raw_root = M.get_root(client, buf)
+    if not raw_root then
+        return nil
+    end
+    local root = vim.fs.normalize(raw_root)
     local client_id = type(client) == "number" and client or client.id
     local id = client_id .. root
 
@@ -80,6 +84,9 @@ end
 ---@param buf integer
 M.is_active = function(client, buf)
     local ws = M.get(client, buf)
+    if not ws then
+        return false
+    end
     local id = ws.client_id .. ws.root
     return M.active == id
 end
@@ -88,6 +95,9 @@ end
 ---@param buf integer
 M.set_active = function(client, buf)
     local ws = M.get(client, buf)
+    if not ws then
+        return
+    end
 
     local additional_settings = {
         workspacePath = ws.root,

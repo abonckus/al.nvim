@@ -151,13 +151,18 @@ function M.setup()
                 on_dir(mp_root)
                 return
             end
-            -- Single-project fallback: walk up to the nearest app.json parent
+            -- Single-project fallback: walk up to the nearest app.json parent.
+            -- Skip activation when no project is found (e.g. git diff buffers with
+            -- non-file URIs): Neovim 0.12 would otherwise start a client with a nil root.
             local fname = vim.api.nvim_buf_get_name(bufnr)
             local has_al_project_cfg = function(path)
                 local alpath = vim.fs.joinpath(path, "app.json")
                 return (vim.uv.fs_stat(alpath) or {}).type == "file"
             end
-            on_dir(vim.iter(vim.fs.parents(fname)):find(has_al_project_cfg) or vim.fs.root(0, ".alpackages"))
+            local root = vim.iter(vim.fs.parents(fname)):find(has_al_project_cfg) or vim.fs.root(bufnr, ".alpackages")
+            if root then
+                on_dir(root)
+            end
         end,
         single_file_support = true,
         settings = Config.workspace,
